@@ -59,5 +59,9 @@ func (p *PaymentHandler) Settle(c *gin.Context) {
 		return
 	}
 	err = p.paymentService.Settling(order)
+	if err != nil {
+		response.Error(c, 400, err.Error())
+		return
+	}
 	response.Success(c, "支付成功，余额已扣减")
 }

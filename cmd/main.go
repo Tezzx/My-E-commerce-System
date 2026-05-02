@@ -51,7 +51,7 @@ func main() {
 	orderService := service.NewOrderService(orderRepo, goodsRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
-	paymentService := service.NewPaymentService(orderRepo, userRepo)
+	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo)
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 
 	//商品数据库初始化

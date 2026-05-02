@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"errors"
 	"order-payment-system/internal/model"
 	"time"
 
@@ -60,4 +61,32 @@ func (o *OrderRepo) GetUserOrderList(userID uint) ([]model.Order, error) {
 	var orders []model.Order
 	err := o.db.Where("user_id = ?", userID).Order("created_at desc").Find(&orders).Error
 	return orders, err
+}
+
+func (o *OrderRepo) ChangeStatus(orderId string) error {
+	// 只更新状态为 0 的订单，避免重复更新
+	result := o.db.Model(&model.Order{}).
+		Where("order_no = ? AND status = ?", orderId, 0).
+		Update("status", 1)
+
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+func (o *OrderRepo) ChangeTime(orderId string) error {
+	now := time.Now()
+	result := o.db.Model(&model.Order{}).
+		Where("order_no = ? ", orderId).
+		Update("pay_time", &now)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("order not found or already paid")
+	}
+
+	return nil
 }
