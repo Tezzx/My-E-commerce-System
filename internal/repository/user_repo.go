@@ -67,3 +67,9 @@ func (u *UserRepo) Deduct(userId, balance uint) error {
 		return err
 	}
 }
+
+func (u *UserRepo) GetAllUsers() ([]model.User, error) {
+	var users []model.User
+	err := u.db.Find(&users).Error
+	return users, err
+}

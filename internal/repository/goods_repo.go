@@ -54,3 +54,10 @@ func (g *GoodsRepo) ReduceStock(goodsID uint, num uint) error {
 	}
 	return result.Error
 }
+
+// 查询所有商品
+func (g *GoodsRepo) GetGoodsList() ([]model.Goods, error) {
+	var goods []model.Goods
+	err := g.db.Find(&goods).Error
+	return goods, err
+}

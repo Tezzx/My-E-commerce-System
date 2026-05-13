@@ -22,3 +22,7 @@ func (s *GoodsService) CreateGoods(goods *model.Goods) error {
 func (s *GoodsService) GetGoodsInfoByID(goodsID uint) (price, goodsNum uint, goodsName string, err error) {
 	return s.goodsRepo.GetGoodsByID(goodsID)
 }
+
+func (g *GoodsService) GetGoodsList() ([]model.Goods, error) {
+	return g.goodsRepo.GetGoodsList()
+}

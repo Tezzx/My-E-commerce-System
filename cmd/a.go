@@ -1,5 +1,8 @@
 package main
 
+/*
+package main
+
 import (
 	"fmt"
 	"log"
@@ -27,16 +30,16 @@ type App struct {
 
 func main() {
 
-	app, port := initializeApp()
+	app,port := initializeApp()
 
-	r := setupRoutes(app)
+	r:=setupRoutes(app)
 
-	r.Run(":" + port)
+	r.Run(port)
 
 }
 
 // initializeApp 初始化所有依赖并返回 App
-func initializeApp() (*App, string) {
+func initializeApp() (*App,string) {
 	// 读取配置文件
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -72,12 +75,16 @@ func initializeApp() (*App, string) {
 	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo)
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 
+	// 商品数据库初始化
+	goodsHandler.GoodsInitial()
+
 	return &App{
 		UserHandler:    userHandler,
 		GoodsHandler:   goodsHandler,
 		OrderHandler:   orderHandler,
 		PaymentHandler: paymentHandler,
-	}, port
+
+	},port
 }
 
 // setupRoutes 注册所有路由
@@ -85,42 +92,51 @@ func setupRoutes(app *App) *gin.Engine {
 
 	r := gin.Default()
 
+	// 全局中间件
 	r.Use(middleware.CorsMiddleware())
-	//暂时忽略前端界面
+
+	// 首页路由
 	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"msg":  "success",
-			"data": "index",
+		type GoodsItem struct {
+			ID        string
+			GoodsName string
+			Price     uint
+		}
+
+		goodsList := []GoodsItem{
+			{ID: "1", GoodsName: "雪影娃娃", Price: 1200},
+			{ID: "2", GoodsName: "恶魔狼", Price: 600},
+			{ID: "3", GoodsName: "治愈兔", Price: 1800},
+			{ID: "4", GoodsName: "月牙雪熊", Price: 1800},
+		}
+
+		c.HTML(200, "index.html", gin.H{
+			"goodsList": goodsList,
 		})
 	})
 
 	r.GET("/auth", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"msg":  "success",
-			"data": "login",
-		})
+		c.HTML(200, "login.html", nil)
 	})
 
-	r.POST("/login", app.UserHandler.LoginUser)
+	// 用户路由
 	r.POST("/register", app.UserHandler.RegisterUser)
+	r.POST("/login", app.UserHandler.LoginUser)
 
-	home := r.Group("/home")
-	home.Use(middleware.TokenIdentify())
+	// 订单路由
+	order := r.Group("/order")
 	{
-		home.GET("/", app.GoodsHandler.GetGoodsList)
-		home.GET("/search/goods", app.GoodsHandler.GetGoodsDetail)
-		home.GET("/search/orders", app.OrderHandler.GetUserOrders)
-		order := home.Group("/order")
-		{
-			order.POST("/", app.OrderHandler.CreateOrder)
-		}
-		pay := home.Group("/pay")
-		{
-			pay.POST("/", app.PaymentHandler.Settle)
-		}
+		order.POST("/create", middleware.TokenIdentify(), app.OrderHandler.CreateOrder)
+		order.GET("/topay", app.OrderHandler.ToPay)
 	}
-	//辅助功能
-	r.GET("help/users", app.UserHandler.GetAllUsers)
+
+	// 支付路由
+	payment := r.Group("/payment")
+	{
+		payment.POST("/ensure", middleware.TokenIdentify(), app.PaymentHandler.MakeSure)
+		payment.POST("/settle", middleware.TokenIdentify(), app.PaymentHandler.Settle)
+	}
 
 	return r
 }
+*/

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"order-payment-system/internal/service"
+	"order-payment-system/internal/types"
+
 	"order-payment-system/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -9,11 +11,6 @@ import (
 
 type OrderHandler struct {
 	orderService *service.OrderService
-}
-
-type OrderRequest struct {
-	GoodsID int `json:"goodsId"`
-	BuyNum  int `json:"buyNum"`
 }
 
 func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
@@ -25,7 +22,7 @@ func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
 // 创建订单
 func (o *OrderHandler) CreateOrder(c *gin.Context) {
 
-	var req OrderRequest
+	var req types.OrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
 		return
@@ -42,18 +39,34 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 		c.JSON(200, gin.H{"code": 401, "msg": "登录信息无效"})
 		return
 	}
-	//创建订单
+
 	order, err := o.orderService.CreateOrder(userID, uint(req.GoodsID), uint(req.BuyNum))
 	if err != nil {
 		response.Error(c, 500, "订单创建失败")
 		return
 	}
 
-	// 4. 返回成功响应
 	response.Success(c, order.OrderNo)
 }
 
-func (o *OrderHandler) ToPay(c *gin.Context) {
-	c.HTML(200, "pay.html", nil)
+func (o *OrderHandler) GetUserOrders(c *gin.Context) {
+	userIDany, exists := c.Get("userID")
+	if !exists {
+		response.Error(c, 401, "请先登录")
+		return
+	}
 
+	userID, ok := userIDany.(uint)
+	if !ok {
+		response.Error(c, 500, "用户ID类型错误")
+		return
+	}
+
+	orders, err := o.orderService.GetUserOrders(userID)
+	if err != nil {
+		response.Error(c, 500, "获取订单失败")
+		return
+	}
+
+	response.Success(c, orders)
 }

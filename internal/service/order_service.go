@@ -75,3 +75,7 @@ func generateOrderNo(goodsID, userID uint) string {
 		strconv.Itoa(int(userID)) +
 		strconv.Itoa(int(goodsID))
 }
+
+func (o *OrderService) GetUserOrders(userID uint) ([]model.Order, error) {
+	return o.orderRepo.GetAllOrdersByUserID(userID)
+}

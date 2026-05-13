@@ -57,3 +57,7 @@ func (u *UserService) TokenCreate(userID uint) (string, error) {
 	token, err := jwt.GenerateJWT(userID)
 	return token, err
 }
+
+func (u *UserService) GetAllUsers() ([]model.User, error) {
+	return u.userRepo.GetAllUsers()
+}

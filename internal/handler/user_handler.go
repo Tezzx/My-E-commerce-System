@@ -2,6 +2,7 @@ package handler
 
 import (
 	"order-payment-system/internal/service"
+	"order-payment-system/internal/types"
 	"order-payment-system/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -9,16 +10,6 @@ import (
 
 type UserHandler struct {
 	userService *service.UserService
-}
-
-type LoginRequest struct {
-	Username string
-	Password string
-}
-
-type RegisterRequest struct {
-	Username string
-	Password string
 }
 
 func NewUserHandler(userService *service.UserService) *UserHandler {
@@ -29,7 +20,7 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 
 // 注册
 func (u *UserHandler) RegisterUser(c *gin.Context) {
-	var req RegisterRequest
+	var req types.RegisterRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		response.Error(c, 400, "参数错误")
@@ -52,7 +43,7 @@ func (u *UserHandler) RegisterUser(c *gin.Context) {
 
 // 登录
 func (u *UserHandler) LoginUser(c *gin.Context) {
-	var req LoginRequest
+	var req types.LoginRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		response.Error(c, 400, "参数错误")
@@ -70,4 +61,12 @@ func (u *UserHandler) LoginUser(c *gin.Context) {
 	}
 	response.Success(c, token)
 
+}
+func (u *UserHandler) GetAllUsers(c *gin.Context) {
+	users, err := u.userService.GetAllUsers()
+	if err != nil {
+		response.Error(c, 500, "获取用户列表失败")
+		return
+	}
+	response.Success(c, users)
 }

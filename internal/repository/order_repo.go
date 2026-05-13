@@ -90,3 +90,9 @@ func (o *OrderRepo) ChangeTime(orderId string) error {
 
 	return nil
 }
+
+func (o *OrderRepo) GetAllOrdersByUserID(userID uint) ([]model.Order, error) {
+	var orders []model.Order
+	err := o.db.Where("user_id = ?", userID).Find(&orders).Error
+	return orders, err
+}

@@ -1,9 +1,12 @@
 package handler
 
 import (
-	"log"
-	"order-payment-system/internal/model"
 	"order-payment-system/internal/service"
+	"order-payment-system/internal/types"
+	"order-payment-system/pkg/response"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
 type GoodsHandler struct {
@@ -16,46 +19,43 @@ func NewGoodsHandler(goodsService *service.GoodsService) *GoodsHandler {
 	}
 }
 
-// 目前没有后台管理部分
-// 初始化商品清单
-func (g *GoodsHandler) GoodsInitial() {
-	goods_01 := model.Goods{
-		Goodsname: "雪影娃娃",
-		Goodsnum:  10,
-		Price:     1200,
+func (g *GoodsHandler) GetGoodsList(c *gin.Context) {
+	goods, err := g.goodsService.GetGoodsList()
+	if err != nil {
+		response.Error(c, 500, "获取商品列表失败")
+		return
 	}
-	goods_02 := model.Goods{
-		Goodsname: "恶魔狼",
-		Goodsnum:  15,
-		Price:     600,
-	}
-	goods_03 := model.Goods{
-		Goodsname: "治愈兔",
-		Goodsnum:  10,
-		Price:     1800,
-	}
-	goods_04 := model.Goods{
-		Goodsname: "月牙雪熊",
-		Goodsnum:  5,
-		Price:     1800,
-	}
-	// 核心：接收错误并打印！！！
-	log.Println("开始初始化商品...")
+	response.Success(c, goods)
+}
 
-	// 批量插入并打印错误
-	if err := g.goodsService.CreateGoods(&goods_01); err != nil {
-		log.Fatalf("商品1插入失败：%v", err) // Fatal会打印错误并停止程序
-	}
-	if err := g.goodsService.CreateGoods(&goods_02); err != nil {
-		log.Fatalf("商品2插入失败：%v", err)
-	}
-	if err := g.goodsService.CreateGoods(&goods_03); err != nil {
-		log.Fatalf("商品3插入失败：%v", err)
-	}
-	if err := g.goodsService.CreateGoods(&goods_04); err != nil {
-		log.Fatalf("商品4插入失败：%v", err)
+func (g *GoodsHandler) GetGoodsDetail(c *gin.Context) {
+	goodsID := c.Query("id")
+
+	id, err := parseUint(goodsID)
+	if err != nil {
+		response.Error(c, 400, "商品ID格式错误")
+		return
 	}
 
-	log.Println("✅ 所有商品初始化成功！")
+	price, goodsNum, goodsName, err := g.goodsService.GetGoodsInfoByID(id)
+	if err != nil {
+		response.Error(c, 404, "商品不存在")
+		return
+	}
 
+	dto := types.Goods{
+		ID:        id,
+		GoodsName: goodsName,
+		GoodsNum:  goodsNum,
+		Price:     price,
+	}
+	response.Success(c, dto)
+}
+
+func parseUint(s string) (uint, error) {
+	num, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return uint(num), nil
 }
