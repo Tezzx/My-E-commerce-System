@@ -6,6 +6,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
+	RabbitMQ RabbitMQConfig
 }
 
 type ServerConfig struct {
@@ -26,6 +27,14 @@ type RedisConfig struct {
 	Password string
 	DB       int
 	PoolSize int
+}
+
+type RabbitMQConfig struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	VHost    string
 }
 
 func LoadConfig() (*Config, error) {

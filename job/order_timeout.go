@@ -3,7 +3,7 @@ package job
 import (
 	"context"
 	"fmt"
-	"order-payment-system/internal/repository"
+	"order-payment-system/internal/service"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -11,14 +11,14 @@ import (
 
 // OrderTimeoutJob 超时订单任务
 type OrderTimeoutJob struct {
-	orderRepo *repository.OrderRepo
-	rdb       *redis.Client
+	orderService *service.OrderService
+	rdb          *redis.Client
 }
 
-func NewOrderTimeoutJob(orderRepo *repository.OrderRepo, rdb *redis.Client) *OrderTimeoutJob {
+func NewOrderTimeoutJob(orderService *service.OrderService, rdb *redis.Client) *OrderTimeoutJob {
 	return &OrderTimeoutJob{
-		orderRepo: orderRepo,
-		rdb:       rdb,
+		orderService: orderService,
+		rdb:          rdb,
 	}
 }
 
@@ -45,7 +45,7 @@ func (j *OrderTimeoutJob) Start() {
 
 			//取消超时订单
 			for _, orderID := range orderIDs {
-				err := j.orderRepo.ChangeStatusToConceled(orderID)
+				err := j.orderService.CancelTimeoutOrder(orderID)
 				if err != nil {
 					fmt.Println("取消订单失败：", orderID)
 					continue

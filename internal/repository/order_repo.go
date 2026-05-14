@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/streadway/amqp"
 	"gorm.io/gorm"
 )
 
@@ -14,13 +15,15 @@ import (
 type OrderRepo struct {
 	db  *gorm.DB
 	rdb *redis.Client
+	mq  *amqp.Connection
 }
 
 // 构造函数
-func NewOrderRepo(db *gorm.DB, rdb *redis.Client) *OrderRepo {
+func NewOrderRepo(db *gorm.DB, rdb *redis.Client, mq *amqp.Connection) *OrderRepo {
 	return &OrderRepo{
 		db:  db,
 		rdb: rdb,
+		mq:  mq,
 	}
 }
 
@@ -30,6 +33,7 @@ func (o *OrderRepo) CreateOrder(order *model.Order) error {
 	return err
 }
 
+// 超时队列
 func (o *OrderRepo) AddQueue(id string) error {
 
 	timeout := 30 * time.Minute
@@ -93,17 +97,6 @@ func (o *OrderRepo) ChangeStatusToPayed(orderId string) error {
 	}
 	return nil
 }
-func (o *OrderRepo) ChangeStatusToConceled(orderId string) error {
-	// 只更新状态为 0 的订单，避免重复更新
-	result := o.db.Model(&model.Order{}).
-		Where("order_no = ? AND status = ?", orderId, 0).
-		Update("status", 2)
-
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
-}
 
 func (o *OrderRepo) ChangeTime(orderId string) error {
 	now := time.Now()
@@ -125,4 +118,8 @@ func (o *OrderRepo) GetAllOrdersByUserID(userID uint) ([]model.Order, error) {
 	var orders []model.Order
 	err := o.db.Where("user_id = ?", userID).Find(&orders).Error
 	return orders, err
+}
+
+func (o *OrderRepo) ReturnDB() *gorm.DB {
+	return o.db
 }

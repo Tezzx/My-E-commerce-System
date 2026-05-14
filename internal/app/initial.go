@@ -31,6 +31,13 @@ func InitializeApp() (*App, string) {
 	//连接redis
 	rdb := database.InitRedis(&cfg.Redis)
 
+	//连接rabbitmq
+	mq, err := database.InitRabbitMQ(&cfg.RabbitMQ)
+	if err != nil {
+		log.Fatalf("消息队列连接失败: %v", err)
+	}
+	fmt.Println("消息队列连接成功")
+
 	// 自动建表
 	if err := db.AutoMigrate(&model.User{}, &model.Goods{}, &model.Order{}); err != nil {
 		log.Fatalf("数据表创建失败: %v", err)
@@ -46,7 +53,7 @@ func InitializeApp() (*App, string) {
 	goodsService := service.NewGoodsService(goodsRepo)
 	goodsHandler := handler.NewGoodsHandler(goodsService)
 
-	orderRepo := repository.NewOrderRepo(db, rdb)
+	orderRepo := repository.NewOrderRepo(db, rdb, mq)
 	orderService := service.NewOrderService(orderRepo, goodsRepo)
 	orderHandler := handler.NewOrderHandler(orderService)
 
@@ -54,7 +61,7 @@ func InitializeApp() (*App, string) {
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 
 	//job部分
-	orderTimeout := job.NewOrderTimeoutJob(orderRepo, rdb)
+	orderTimeout := job.NewOrderTimeoutJob(orderService, rdb)
 
 	return &App{
 		UserHandler:    userHandler,

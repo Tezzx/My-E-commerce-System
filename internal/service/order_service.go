@@ -5,6 +5,8 @@ import (
 	"order-payment-system/internal/repository"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type OrderService struct {
@@ -78,4 +80,26 @@ func generateOrderNo(goodsID, userID uint) string {
 
 func (o *OrderService) GetUserOrders(userID uint) ([]model.Order, error) {
 	return o.orderRepo.GetAllOrdersByUserID(userID)
+}
+
+// 取消超时订单并回滚库存
+func (o *OrderService) CancelTimeoutOrder(orderNo string) error {
+	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return err
+	}
+
+	db := o.orderRepo.ReturnDB()
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.Order{}).Where("order_no = ? AND status = ?", orderNo, 0).Update("status", 2).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.Goods{}).Where("id = ?", order.GoodsID).UpdateColumn("goodsnum", gorm.Expr("goodsnum + ?", order.BuyNum)).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

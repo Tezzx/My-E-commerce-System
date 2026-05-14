@@ -64,3 +64,13 @@ func (g *GoodsRepo) GetGoodsList() ([]model.Goods, error) {
 	err := g.db.Find(&goods).Error
 	return goods, err
 }
+
+// 增加库存
+func (g *GoodsRepo) RestoreStock(tx *gorm.DB, goodsID uint, num uint) error {
+
+	result := tx.Model(&model.Goods{}).
+		Where("id = ?", goodsID).
+		UpdateColumn("goodsnum", gorm.Expr("goodsnum + ?", num))
+
+	return result.Error
+}
