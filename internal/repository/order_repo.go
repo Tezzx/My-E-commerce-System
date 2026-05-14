@@ -1,22 +1,26 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"order-payment-system/internal/model"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 // 订单数据访问层
 type OrderRepo struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
 // 构造函数
-func NewOrderRepo(db *gorm.DB) *OrderRepo {
+func NewOrderRepo(db *gorm.DB, rdb *redis.Client) *OrderRepo {
 	return &OrderRepo{
-		db: db,
+		db:  db,
+		rdb: rdb,
 	}
 }
 
@@ -24,6 +28,21 @@ func NewOrderRepo(db *gorm.DB) *OrderRepo {
 func (o *OrderRepo) CreateOrder(order *model.Order) error {
 	err := o.db.Create(order).Error
 	return err
+}
+
+func (o *OrderRepo) AddQueue(id string) error {
+
+	timeout := 30 * time.Minute
+	expireAt := time.Now().Add(timeout).Unix()
+
+	ctx := context.Background()
+	if err := o.rdb.ZAdd(ctx, "order:timeout:queue", redis.Z{
+		Score:  float64(expireAt),
+		Member: id,
+	}).Err(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // 根据订单ID查询订单
@@ -63,11 +82,22 @@ func (o *OrderRepo) GetUserOrderList(userID uint) ([]model.Order, error) {
 	return orders, err
 }
 
-func (o *OrderRepo) ChangeStatus(orderId string) error {
+func (o *OrderRepo) ChangeStatusToPayed(orderId string) error {
 	// 只更新状态为 0 的订单，避免重复更新
 	result := o.db.Model(&model.Order{}).
 		Where("order_no = ? AND status = ?", orderId, 0).
 		Update("status", 1)
+
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+func (o *OrderRepo) ChangeStatusToConceled(orderId string) error {
+	// 只更新状态为 0 的订单，避免重复更新
+	result := o.db.Model(&model.Order{}).
+		Where("order_no = ? AND status = ?", orderId, 0).
+		Update("status", 2)
 
 	if result.Error != nil {
 		return result.Error

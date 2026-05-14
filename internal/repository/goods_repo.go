@@ -4,16 +4,19 @@ import (
 	"errors"
 	"order-payment-system/internal/model"
 
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
 
 type GoodsRepo struct {
-	db *gorm.DB
+	db  *gorm.DB
+	rdb *redis.Client
 }
 
-func NewGoodsRepo(db *gorm.DB) *GoodsRepo {
+func NewGoodsRepo(db *gorm.DB, rdb *redis.Client) *GoodsRepo {
 	return &GoodsRepo{
-		db: db,
+		db:  db,
+		rdb: rdb,
 	}
 }
 

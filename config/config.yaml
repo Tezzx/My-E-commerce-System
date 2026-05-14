@@ -7,3 +7,10 @@ database:
   user: root      
   password: root  
   dbname: order_payment  
+
+redis:
+  host: 127.0.0.1
+  port: "6379"
+  password: ""
+  DB: 0
+  PoolSize: 10

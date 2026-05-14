@@ -1,126 +1,17 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"strconv"
-
-	"order-payment-system/config"
-	"order-payment-system/internal/handler"
-	"order-payment-system/pkg/database"
-	"order-payment-system/pkg/middleware"
-
-	"order-payment-system/internal/model"
-	"order-payment-system/internal/repository"
-	"order-payment-system/internal/service"
-
-	"github.com/gin-gonic/gin"
+	"order-payment-system/internal/app"
 )
-
-// App 包含所有需要的依赖
-type App struct {
-	UserHandler    *handler.UserHandler
-	GoodsHandler   *handler.GoodsHandler
-	OrderHandler   *handler.OrderHandler
-	PaymentHandler *handler.PaymentHandler
-}
 
 func main() {
 
-	app, port := initializeApp()
+	appl, port := app.InitializeApp()
 
-	r := setupRoutes(app)
+	r := app.SetupRoutes(appl)
+
+	app.Start(appl)
 
 	r.Run(":" + port)
 
-}
-
-// initializeApp 初始化所有依赖并返回 App
-func initializeApp() (*App, string) {
-	// 读取配置文件
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("配置文件读取失败: %v", err)
-	}
-	port := strconv.Itoa(cfg.Server.Port)
-
-	// 连接数据库
-	db, err := database.InitMySQL(&cfg.Database)
-	if err != nil {
-		log.Fatalf("数据库连接失败: %v", err)
-	}
-	fmt.Println("数据库连接成功")
-
-	// 自动建表
-	if err := db.AutoMigrate(&model.User{}, &model.Goods{}, &model.Order{}); err != nil {
-		log.Fatalf("数据表创建失败: %v", err)
-	}
-
-	// 依赖注入
-	userRepo := repository.NewUserRepo(db)
-	userService := service.NewUserService(userRepo)
-	userHandler := handler.NewUserHandler(userService)
-
-	goodsRepo := repository.NewGoodsRepo(db)
-	goodsService := service.NewGoodsService(goodsRepo)
-	goodsHandler := handler.NewGoodsHandler(goodsService)
-
-	orderRepo := repository.NewOrderRepo(db)
-	orderService := service.NewOrderService(orderRepo, goodsRepo)
-	orderHandler := handler.NewOrderHandler(orderService)
-
-	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo)
-	paymentHandler := handler.NewPaymentHandler(paymentService)
-
-	return &App{
-		UserHandler:    userHandler,
-		GoodsHandler:   goodsHandler,
-		OrderHandler:   orderHandler,
-		PaymentHandler: paymentHandler,
-	}, port
-}
-
-// setupRoutes 注册所有路由
-func setupRoutes(app *App) *gin.Engine {
-
-	r := gin.Default()
-
-	r.Use(middleware.CorsMiddleware())
-	//暂时忽略前端界面
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"msg":  "success",
-			"data": "index",
-		})
-	})
-
-	r.GET("/auth", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"msg":  "success",
-			"data": "login",
-		})
-	})
-
-	r.POST("/login", app.UserHandler.LoginUser)
-	r.POST("/register", app.UserHandler.RegisterUser)
-
-	home := r.Group("/home")
-	home.Use(middleware.TokenIdentify())
-	{
-		home.GET("/", app.GoodsHandler.GetGoodsList)
-		home.GET("/search/goods", app.GoodsHandler.GetGoodsDetail)
-		home.GET("/search/orders", app.OrderHandler.GetUserOrders)
-		order := home.Group("/order")
-		{
-			order.POST("/", app.OrderHandler.CreateOrder)
-		}
-		pay := home.Group("/pay")
-		{
-			pay.POST("/", app.PaymentHandler.Settle)
-		}
-	}
-	//辅助功能
-	r.GET("help/users", app.UserHandler.GetAllUsers)
-
-	return r
 }

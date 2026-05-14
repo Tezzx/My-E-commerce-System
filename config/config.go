@@ -5,6 +5,7 @@ import "github.com/spf13/viper"
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
+	Redis    RedisConfig
 }
 
 type ServerConfig struct {
@@ -17,6 +18,14 @@ type DatabaseConfig struct {
 	User     string
 	Password string
 	DBName   string
+}
+
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+	PoolSize int
 }
 
 func LoadConfig() (*Config, error) {

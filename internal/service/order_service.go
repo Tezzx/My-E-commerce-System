@@ -55,7 +55,7 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (*mod
 	if err != nil {
 		return nil, err
 	}
-
+	err = o.orderRepo.AddQueue(orderNo)
 	return order, nil
 }
 
