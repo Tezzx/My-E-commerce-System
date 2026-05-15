@@ -30,7 +30,7 @@ func InitRabbitMQ(cfg *config.RabbitMQConfig) (*amqp.Connection, error) {
 }
 
 // 声明一个队列（如果不存在则创建）
-func declareQueue(ch *amqp.Channel, queueName string) error {
+func DeclareQueue(ch *amqp.Channel, queueName string) error {
 	_, err := ch.QueueDeclare(
 		queueName, // 队列名称
 		true,      // durable（持久化）

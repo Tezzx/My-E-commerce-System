@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"order-payment-system/internal/model"
 
@@ -47,15 +48,50 @@ func (g *GoodsRepo) GetGoodsByID(goodsID uint) (price, goodsNum uint, goodsName 
 }
 
 // 扣减商品库存
-func (g *GoodsRepo) ReduceStock(goodsID uint, num uint) error {
-	result := g.db.Model(&model.Goods{}).
-		Where("id = ? AND goodsnum >= ?", goodsID, num).
-		UpdateColumn("goodsnum", gorm.Expr("goodsnum - ?", num))
+func (g *GoodsRepo) DeductStock(goodsID uint, quantity int64) (bool, error) {
+	ctx := context.Background()
 
-	if result.RowsAffected == 0 {
-		return errors.New("库存不足")
+	luaScript := `
+local current = redis.call('HGET', KEYS[1], ARGV[1])
+if not current then
+    return -1  -- 商品不存在
+end
+local stock = tonumber(current)
+local needed = tonumber(ARGV[2])
+if stock >= needed then
+    redis.call('HINCRBY', KEYS[1], ARGV[1], -needed)
+    return stock - needed  -- 返回剩余库存
+else
+    return -2  -- 库存不足
+end
+`
+
+	const stockKey = "goods"
+
+	result, err := g.rdb.Eval(ctx, luaScript, []string{stockKey}, goodsID, quantity).Result()
+	if err != nil {
+		return false, err
 	}
-	return result.Error
+
+	// 解析 Lua 脚本返回值
+	switch v := result.(type) {
+	case int64:
+		if v == -1 {
+			return false, errors.New("商品不存在")
+		} else if v == -2 {
+			return false, nil // 库存不足
+		}
+		return true, nil
+	case string:
+		if v == "-1" {
+			return false, errors.New("商品不存在")
+		} else if v == "-2" {
+			return false, nil
+		}
+		return true, nil
+	default:
+		return false, errors.New("unexpected return type from redis lua script")
+	}
 }
 
 // 查询所有商品

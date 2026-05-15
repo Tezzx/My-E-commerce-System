@@ -12,4 +12,5 @@ type App struct {
 	PaymentHandler *handler.PaymentHandler
 
 	orderTimeout *job.OrderTimeoutJob
+	orderCreate  *job.OrderCreateConsumer
 }

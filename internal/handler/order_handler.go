@@ -40,13 +40,13 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	order, err := o.orderService.CreateOrder(userID, uint(req.GoodsID), uint(req.BuyNum))
+	orderNo, err := o.orderService.CreateOrder(userID, uint(req.GoodsID), uint(req.BuyNum))
 	if err != nil {
 		response.Error(c, 500, "订单创建失败")
 		return
 	}
 
-	response.Success(c, order.OrderNo)
+	response.Success(c, orderNo)
 }
 
 func (o *OrderHandler) GetUserOrders(c *gin.Context) {

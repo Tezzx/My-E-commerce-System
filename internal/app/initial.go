@@ -43,6 +43,11 @@ func InitializeApp() (*App, string) {
 		log.Fatalf("数据表创建失败: %v", err)
 	}
 
+	//设置队列
+	ch, _ := mq.Channel()
+	defer ch.Close()
+	database.DeclareQueue(ch, "order_create_queue")
+
 	// 依赖注入
 	//internal部分
 	userRepo := repository.NewUserRepo(db, rdb)
@@ -53,8 +58,8 @@ func InitializeApp() (*App, string) {
 	goodsService := service.NewGoodsService(goodsRepo)
 	goodsHandler := handler.NewGoodsHandler(goodsService)
 
-	orderRepo := repository.NewOrderRepo(db, rdb, mq)
-	orderService := service.NewOrderService(orderRepo, goodsRepo)
+	orderRepo := repository.NewOrderRepo(db, rdb)
+	orderService := service.NewOrderService(orderRepo, goodsRepo, mq)
 	orderHandler := handler.NewOrderHandler(orderService)
 
 	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo, db)
@@ -62,6 +67,7 @@ func InitializeApp() (*App, string) {
 
 	//job部分
 	orderTimeout := job.NewOrderTimeoutJob(orderService, rdb)
+	orderCreate := job.NewOrderCreateConsumer(orderService, mq)
 
 	return &App{
 		UserHandler:    userHandler,
@@ -70,5 +76,6 @@ func InitializeApp() (*App, string) {
 		PaymentHandler: paymentHandler,
 
 		orderTimeout: orderTimeout,
+		orderCreate:  orderCreate,
 	}, port
 }

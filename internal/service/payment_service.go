@@ -6,7 +6,6 @@ import (
 	"order-payment-system/internal/repository"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/streadway/amqp"
 	"gorm.io/gorm"
 )
 
@@ -40,9 +39,8 @@ func (p *PaymentService) Settling(order *model.Order) error {
 	// 开启事务
 	return p.db.Transaction(func(tx *gorm.DB) error {
 		// 创建使用事务 tx 的临时 repo 实例
-		var x *amqp.Connection
 		userRepoTx := repository.NewUserRepo(tx, p.rdb)
-		orderRepoTx := repository.NewOrderRepo(tx, p.rdb, x)
+		orderRepoTx := repository.NewOrderRepo(tx, p.rdb)
 
 		// 扣款
 		err := userRepoTx.Deduct(order.UserID, order.TotalPrice)

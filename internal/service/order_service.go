@@ -1,48 +1,52 @@
 package service
 
 import (
+	"encoding/json"
+	"errors"
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
 	"strconv"
 	"time"
 
+	"github.com/streadway/amqp"
 	"gorm.io/gorm"
 )
 
 type OrderService struct {
 	orderRepo *repository.OrderRepo
-	goodsRepo *repository.GoodsRepo // 依赖商品仓库：校验商品+扣库存
+	goodsRepo *repository.GoodsRepo
+	mq        *amqp.Connection
 }
 
 // NewOrderService 构造函数
-func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.GoodsRepo) *OrderService {
+func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.GoodsRepo, mq *amqp.Connection) *OrderService {
 	return &OrderService{
 		orderRepo: orderRepo,
 		goodsRepo: goodsRepo,
+		mq:        mq,
 	}
 }
 
 // 创建订单
-func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (*model.Order, error) {
+func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (string, error) {
 
-	price, stock, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
+	price, _, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-
-	if stock < buyNum {
-		return nil, err
-	}
-
-	err = o.goodsRepo.ReduceStock(goodsID, buyNum)
+	//原子化扣库存
+	success, err := o.goodsRepo.DeductStock(goodsID, int64(buyNum))
 	if err != nil {
-		return nil, err
+		return "", err
+	}
+	if !success {
+		return "", errors.New("库存不足")
 	}
 
-	orderNo := generateOrderNo(goodsID, userID)
+	orderNo := o.generateOrderNo(goodsID, userID)
 	totalPrice := price * buyNum
 
-	order := &model.Order{
+	msg := &model.Order{
 		OrderNo:    orderNo,
 		UserID:     userID,
 		GoodsID:    goodsID,
@@ -53,12 +57,38 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (*mod
 		Status:     0,
 	}
 
-	err = o.orderRepo.CreateOrder(order)
+	body, err := json.Marshal(msg)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	err = o.orderRepo.AddQueue(orderNo)
-	return order, nil
+
+	ch, err := o.mq.Channel()
+	if err != nil {
+		return "", err
+	}
+	defer ch.Close()
+
+	err = ch.Publish(
+		"",                   // exchange
+		"order_create_queue", // routing key = queue name（direct 模式）
+		false,                // mandatory
+		false,                // immediate
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			Timestamp:    time.Now(),
+			DeliveryMode: amqp.Persistent, // 持久化消息，防止 RabbitMQ 重启丢失
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return orderNo, nil
+}
+
+func (o *OrderService) SaveOrder(order *model.Order) error {
+	return o.orderRepo.SaveOrder(order)
 }
 
 // 获取当前用户的所有订单
@@ -72,7 +102,7 @@ func (o *OrderService) PayOrder(orderID uint) error {
 }
 
 // 生成唯一订单号
-func generateOrderNo(goodsID, userID uint) string {
+func (o *OrderService) generateOrderNo(goodsID, userID uint) string {
 	return time.Now().Format("20060102150405") +
 		strconv.Itoa(int(userID)) +
 		strconv.Itoa(int(goodsID))
@@ -102,4 +132,8 @@ func (o *OrderService) CancelTimeoutOrder(orderNo string) error {
 
 		return nil
 	})
+}
+
+func (o *OrderService) AddQueue(id string) error {
+	return o.orderRepo.AddQueue(id)
 }

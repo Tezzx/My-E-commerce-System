@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/streadway/amqp"
 	"gorm.io/gorm"
 )
 
@@ -15,20 +14,18 @@ import (
 type OrderRepo struct {
 	db  *gorm.DB
 	rdb *redis.Client
-	mq  *amqp.Connection
 }
 
 // 构造函数
-func NewOrderRepo(db *gorm.DB, rdb *redis.Client, mq *amqp.Connection) *OrderRepo {
+func NewOrderRepo(db *gorm.DB, rdb *redis.Client) *OrderRepo {
 	return &OrderRepo{
 		db:  db,
 		rdb: rdb,
-		mq:  mq,
 	}
 }
 
 // CreateOrder 创建订单
-func (o *OrderRepo) CreateOrder(order *model.Order) error {
+func (o *OrderRepo) SaveOrder(order *model.Order) error {
 	err := o.db.Create(order).Error
 	return err
 }
