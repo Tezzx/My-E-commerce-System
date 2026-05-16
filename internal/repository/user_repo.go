@@ -35,6 +35,16 @@ func (u *UserRepo) GetByUsername(username string) (string, error) {
 	}
 	return user.Password, nil
 }
+
+func (u *UserRepo) GetByUserID(userid uint) (string, error) {
+	var user model.User
+	err := u.db.Where("id=?", userid).Select("password").First(&user).Error
+	if err != nil {
+		return "", err
+	}
+	return user.Password, nil
+}
+
 func (u *UserRepo) CheckUsernameExists(username string) (bool, error) {
 	var count int64
 	err := u.db.Model(&model.User{}).Where("username = ?", username).Count(&count).Error

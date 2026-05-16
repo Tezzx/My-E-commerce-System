@@ -34,7 +34,7 @@ func (p *PaymentHandler) Settle(c *gin.Context) {
 		response.Error(c, 400, "订单已支付/已取消，无需重复支付")
 		return
 	}
-	err = p.paymentService.Settling(order)
+	err = p.paymentService.Settling(order, req.Password)
 	if err != nil {
 		response.Error(c, 400, err.Error())
 		return

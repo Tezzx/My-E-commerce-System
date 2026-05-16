@@ -4,6 +4,7 @@ import (
 	"errors"
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
+	"order-payment-system/pkg/util"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -30,7 +31,7 @@ func (p *PaymentService) GetOrder(orderNo string) (*model.Order, error) {
 	return p.orderRepo.GetOrderByOrderNo(orderNo)
 }
 
-func (p *PaymentService) Settling(order *model.Order) error {
+func (p *PaymentService) Settling(order *model.Order, userPassword string) error {
 	// 先做状态检查
 	if order.Status != 0 {
 		return errors.New("订单已支付或失效")
@@ -42,10 +43,19 @@ func (p *PaymentService) Settling(order *model.Order) error {
 		userRepoTx := repository.NewUserRepo(tx, p.rdb)
 		orderRepoTx := repository.NewOrderRepo(tx, p.rdb)
 
-		// 扣款
-		err := userRepoTx.Deduct(order.UserID, order.TotalPrice)
+		//验证密码
+		password, err := p.userRepo.GetByUserID(order.UserID)
 		if err != nil {
-			return err // 自动回滚
+			return err
+		}
+		err = util.VerifyPassword(userPassword, password)
+		if err != nil {
+			return err
+		}
+		// 扣款
+		err = userRepoTx.Deduct(order.UserID, order.TotalPrice)
+		if err != nil {
+			return err
 		}
 
 		// 更新状态
@@ -54,6 +64,10 @@ func (p *PaymentService) Settling(order *model.Order) error {
 			return err
 		}
 
+		err = orderRepoTx.DelQueue(order.OrderNo)
+		if err != nil {
+			return err
+		}
 		return nil // 提交事务
 	})
 }
