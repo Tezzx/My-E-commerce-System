@@ -54,12 +54,6 @@ func (p *PaymentService) Settling(order *model.Order) error {
 			return err
 		}
 
-		// 更新时间
-		err = orderRepoTx.ChangeTime(order.OrderNo)
-		if err != nil {
-			return err
-		}
-
 		return nil // 提交事务
 	})
 }

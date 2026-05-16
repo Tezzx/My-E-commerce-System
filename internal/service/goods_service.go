@@ -15,6 +15,7 @@ func NewGoodsService(goodsRepo *repository.GoodsRepo) *GoodsService {
 	}
 }
 
+// 创建商品
 func (s *GoodsService) CreateGoods(goods *model.Goods) error {
 	return s.goodsRepo.CreateGoods(goods)
 }

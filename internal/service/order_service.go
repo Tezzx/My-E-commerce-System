@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/streadway/amqp"
-	"gorm.io/gorm"
 )
 
 type OrderService struct {
@@ -27,7 +26,9 @@ func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.Good
 	}
 }
 
-// 创建订单
+// --扣redis库存并加入队列--加入超时队列--订单存入mysql
+// --加redis库存--改变订单状态
+// 创建订单（扣库存然后传消息队列）
 func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (string, error) {
 
 	price, _, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
@@ -87,18 +88,50 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 	return orderNo, nil
 }
 
+// 把订单存到mysql
 func (o *OrderService) SaveOrder(order *model.Order) error {
 	return o.orderRepo.SaveOrder(order)
 }
 
-// 获取当前用户的所有订单
-func (o *OrderService) GetUserOrderList(userID uint) ([]model.Order, error) {
-	return o.orderRepo.GetUserOrderList(userID)
+// 把订单加入超时队列
+func (o *OrderService) AddQueue(orderNo string) error {
+	return o.orderRepo.AddQueue(orderNo)
+}
+
+// 取消超时订单并回滚库存
+func (o *OrderService) CancelOrder(orderNo string) error {
+	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return err
+	}
+	if order.Status != 0 {
+		_ = o.orderRepo.DelQueue(orderNo)
+		return nil
+	}
+	err = o.goodsRepo.IncrementStock(order.GoodsID, int64(order.BuyNum))
+	if err != nil {
+		return err
+	}
+	err = o.orderRepo.CancelOrderStatus(orderNo)
+	if err != nil {
+		return err
+	}
+	err = o.orderRepo.DelQueue(orderNo)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // 支付订单
-func (o *OrderService) PayOrder(orderID uint) error {
-	return o.orderRepo.UpdateOrderPayStatus(orderID)
+func (o *OrderService) PayOrder(orderNo string) error {
+	return o.orderRepo.ChangeStatusToPayed(orderNo)
+}
+
+// -----------------------辅助功能------------------------
+// 获取当前用户的所有订单
+func (o *OrderService) GetUserOrderList(userID uint) ([]model.Order, error) {
+	return o.orderRepo.GetUserOrderList(userID)
 }
 
 // 生成唯一订单号
@@ -106,34 +139,4 @@ func (o *OrderService) generateOrderNo(goodsID, userID uint) string {
 	return time.Now().Format("20060102150405") +
 		strconv.Itoa(int(userID)) +
 		strconv.Itoa(int(goodsID))
-}
-
-func (o *OrderService) GetUserOrders(userID uint) ([]model.Order, error) {
-	return o.orderRepo.GetAllOrdersByUserID(userID)
-}
-
-// 取消超时订单并回滚库存
-func (o *OrderService) CancelTimeoutOrder(orderNo string) error {
-	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
-	if err != nil {
-		return err
-	}
-
-	db := o.orderRepo.ReturnDB()
-
-	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.Order{}).Where("order_no = ? AND status = ?", orderNo, 0).Update("status", 2).Error; err != nil {
-			return err
-		}
-
-		if err := tx.Model(&model.Goods{}).Where("id = ?", order.GoodsID).UpdateColumn("goodsnum", gorm.Expr("goodsnum + ?", order.BuyNum)).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
-}
-
-func (o *OrderService) AddQueue(id string) error {
-	return o.orderRepo.AddQueue(id)
 }

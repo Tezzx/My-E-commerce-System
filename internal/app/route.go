@@ -38,6 +38,7 @@ func SetupRoutes(app *App) *gin.Engine {
 		order := home.Group("/order")
 		{
 			order.POST("/", app.OrderHandler.CreateOrder)
+			order.POST("/cancel", app.OrderHandler.CancelOrder)
 		}
 		pay := home.Group("/pay")
 		{

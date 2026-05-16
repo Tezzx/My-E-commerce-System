@@ -49,6 +49,13 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 	response.Success(c, orderNo)
 }
 
+// 取消订单
+func (o *OrderHandler) CancelOrder(c *gin.Context) {
+	orderNo := c.Query("orderNo")
+	o.orderService.CancelOrder(orderNo)
+	response.Success(c, "取消成功")
+}
+
 func (o *OrderHandler) GetUserOrders(c *gin.Context) {
 	userIDany, exists := c.Get("userID")
 	if !exists {
@@ -62,7 +69,7 @@ func (o *OrderHandler) GetUserOrders(c *gin.Context) {
 		return
 	}
 
-	orders, err := o.orderService.GetUserOrders(userID)
+	orders, err := o.orderService.GetUserOrderList(userID)
 	if err != nil {
 		response.Error(c, 500, "获取订单失败")
 		return

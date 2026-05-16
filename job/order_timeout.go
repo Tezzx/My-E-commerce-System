@@ -32,7 +32,7 @@ func (j *OrderTimeoutJob) Start() {
 		for {
 			now := time.Now().Unix()
 
-			orderIDs, err := j.rdb.ZRangeByScore(ctx, "order:timeout:queue", &redis.ZRangeBy{
+			orderNos, err := j.rdb.ZRangeByScore(ctx, "order:timeout:queue", &redis.ZRangeBy{
 				Min: "-inf",
 				Max: fmt.Sprintf("%d", now),
 			}).Result()
@@ -44,14 +44,12 @@ func (j *OrderTimeoutJob) Start() {
 			}
 
 			//取消超时订单
-			for _, orderID := range orderIDs {
-				err := j.orderService.CancelTimeoutOrder(orderID)
+			for _, orderNo := range orderNos {
+				err := j.orderService.CancelOrder(orderNo)
 				if err != nil {
-					fmt.Println("取消订单失败：", orderID)
+					fmt.Println("取消订单失败：", orderNo)
 					continue
 				}
-
-				j.rdb.ZRem(ctx, "order:timeout:queue", orderID)
 			}
 
 			time.Sleep(1 * time.Second)
