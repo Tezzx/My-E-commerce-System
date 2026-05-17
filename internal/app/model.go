@@ -13,4 +13,5 @@ type App struct {
 
 	orderTimeout *job.OrderTimeoutJob
 	orderCreate  *job.OrderCreateConsumer
+	cachePreheat *job.GoodsCacheWarmJob
 }

@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"order-payment-system/internal/model"
+	"strconv"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -116,11 +119,39 @@ func (g *GoodsRepo) CreateGoods(goods *model.Goods) error {
 
 // 根据商品ID获取 商品价格 和 库存数量和商品名
 func (g *GoodsRepo) GetGoodsByID(goodsID uint) (price, goodsNum uint, goodsName string, err error) {
-	var goods model.Goods
-	err = g.db.Where("id = ?", goodsID).Select("price, goodsnum,goodsname").First(&goods).Error
-	if err != nil {
+	ctx := context.Background()
+	key := "goods:info:" + strconv.FormatUint(uint64(goodsID), 10)
+
+	// 1. 尝试从 Redis 读取
+	val, err := g.rdb.Get(ctx, key).Result()
+	if err == redis.Nil {
+		// 2. 缓存未命中，回源到 MySQL
+		var goods model.Goods
+		dbErr := g.db.Select("id, price, goodsnum, goodsname").
+			Where("id = ?", goodsID).
+			First(&goods).Error
+		if dbErr != nil {
+			return 0, 0, "", dbErr
+		}
+
+		// 3. 回填缓存
+		data, _ := json.Marshal(goods)
+		// 设置 TTL 避免永久脏数据
+		g.rdb.Set(ctx, key, data, 1*time.Hour)
+
+		return goods.Price, goods.Goodsnum, goods.Goodsname, nil
+	} else if err != nil {
 		return 0, 0, "", err
 	}
+
+	// 4. Redis 命中，解析 JSON
+	var goods model.Goods
+	if err := json.Unmarshal([]byte(val), &goods); err != nil {
+		// JSON 损坏，可选择删除 key 并回源
+		g.rdb.Del(ctx, key)
+		return g.GetGoodsByID(goodsID) // 递归回源（或改用 DB 查询）
+	}
+
 	return goods.Price, goods.Goodsnum, goods.Goodsname, nil
 }
 

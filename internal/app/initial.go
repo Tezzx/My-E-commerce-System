@@ -68,6 +68,7 @@ func InitializeApp() (*App, string) {
 	//job部分
 	orderTimeout := job.NewOrderTimeoutJob(orderService, rdb)
 	orderCreate := job.NewOrderCreateConsumer(orderService, mq)
+	cachePreheat := job.NewGoodsCacheWarmJob(goodsService, rdb, db)
 
 	return &App{
 		UserHandler:    userHandler,
@@ -77,5 +78,6 @@ func InitializeApp() (*App, string) {
 
 		orderTimeout: orderTimeout,
 		orderCreate:  orderCreate,
+		cachePreheat: cachePreheat,
 	}, port
 }
