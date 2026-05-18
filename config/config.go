@@ -3,10 +3,15 @@ package config
 import "github.com/spf13/viper"
 
 type Config struct {
+	Jwt      JwtConfig
 	Server   ServerConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
 	RabbitMQ RabbitMQConfig
+}
+
+type JwtConfig struct {
+	Key []byte
 }
 
 type ServerConfig struct {

@@ -4,9 +4,11 @@ import (
 	"errors"
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
+	"order-payment-system/pkg/logger"
 	"order-payment-system/pkg/util"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -28,46 +30,72 @@ func NewPaymentService(orderRepo *repository.OrderRepo, userRepo *repository.Use
 }
 
 func (p *PaymentService) GetOrder(orderNo string) (*model.Order, error) {
-	return p.orderRepo.GetOrderByOrderNo(orderNo)
+	order, err := p.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		logger.Log.Warn("支付 - 订单不存在", zap.String("order_no", orderNo))
+	}
+	return order, err
 }
 
 func (p *PaymentService) Settling(order *model.Order, userPassword string) error {
-	// 先做状态检查
 	if order.Status != 0 {
+		logger.Log.Warn("支付 - 订单状态异常，拒绝支付",
+			zap.String("order_no", order.OrderNo),
+			zap.Int("status", order.Status))
 		return errors.New("订单已支付或失效")
 	}
 
-	// 开启事务
 	return p.db.Transaction(func(tx *gorm.DB) error {
-		// 创建使用事务 tx 的临时 repo 实例
 		userRepoTx := repository.NewUserRepo(tx, p.rdb)
 		orderRepoTx := repository.NewOrderRepo(tx, p.rdb)
 
-		//验证密码
-		password, err := p.userRepo.GetByUserID(order.UserID)
+		password, err := userRepoTx.GetByUserID(order.UserID)
 		if err != nil {
-			return err
-		}
-		err = util.VerifyPassword(userPassword, password)
-		if err != nil {
-			return err
-		}
-		// 扣款
-		err = userRepoTx.Deduct(order.UserID, order.TotalPrice)
-		if err != nil {
+			logger.Log.Error("支付 - 获取用户密码失败",
+				zap.Uint("user_id", order.UserID),
+				zap.String("order_no", order.OrderNo),
+				zap.Error(err))
 			return err
 		}
 
-		// 更新状态
+		err = util.VerifyPassword(userPassword, password)
+		if err != nil {
+			logger.Log.Warn("支付 - 密码验证失败",
+				zap.Uint("user_id", order.UserID),
+				zap.String("order_no", order.OrderNo))
+			return err
+		}
+
+		err = userRepoTx.Deduct(order.UserID, order.TotalPrice)
+		if err != nil {
+			logger.Log.Error("支付 - 扣款失败",
+				zap.Uint("user_id", order.UserID),
+				zap.String("order_no", order.OrderNo),
+				zap.Uint("amount", order.TotalPrice),
+				zap.Error(err))
+			return err
+		}
+
 		err = orderRepoTx.ChangeStatusToPayed(order.OrderNo)
 		if err != nil {
+			logger.Log.Error("支付 - 更新订单状态失败",
+				zap.String("order_no", order.OrderNo),
+				zap.Error(err))
 			return err
 		}
 
 		err = orderRepoTx.DelQueue(order.OrderNo)
 		if err != nil {
-			return err
+			logger.Log.Warn("支付 - 从超时队列删除失败（可容忍）",
+				zap.String("order_no", order.OrderNo),
+				zap.Error(err))
 		}
-		return nil // 提交事务
+
+		logger.Log.Info("支付成功",
+			zap.String("order_no", order.OrderNo),
+			zap.Uint("user_id", order.UserID),
+			zap.Uint("amount", order.TotalPrice))
+
+		return nil
 	})
 }

@@ -10,6 +10,8 @@ import (
 	"order-payment-system/internal/service"
 	"order-payment-system/job"
 	"order-payment-system/pkg/database"
+	"order-payment-system/pkg/jwt"
+	"order-payment-system/pkg/logger"
 	"strconv"
 )
 
@@ -20,7 +22,7 @@ func InitializeApp() (*App, string) {
 		log.Fatalf("配置文件读取失败: %v", err)
 	}
 	port := strconv.Itoa(cfg.Server.Port)
-
+	jwt.InitJwtKey(string(cfg.Jwt.Key))
 	// 连接数据库
 	db, err := database.InitMySQL(&cfg.Database)
 	if err != nil {
@@ -69,6 +71,8 @@ func InitializeApp() (*App, string) {
 	orderTimeout := job.NewOrderTimeoutJob(orderService, rdb)
 	orderCreate := job.NewOrderCreateConsumer(orderService, mq)
 	cachePreheat := job.NewGoodsCacheWarmJob(goodsService, rdb, db)
+
+	logger.Log.Info("初始化成功")
 
 	return &App{
 		UserHandler:    userHandler,

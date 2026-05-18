@@ -6,11 +6,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte("my-secret-key")
-
 type Claims struct {
 	UserID               uint `json:"userid"`
 	jwt.RegisteredClaims      // 包含过期时间、签发者等标准字段
+}
+
+var JwtKey []byte
+
+func InitJwtKey(jwt string) {
+	JwtKey = []byte(jwt)
 }
 
 // 生成token
@@ -26,7 +30,7 @@ func GenerateJWT(userID uint) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString(JwtKey)
 }
 
 // 解析token
@@ -34,7 +38,7 @@ func ValidateJWT(tokenStr string) (*Claims, error) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+		return JwtKey, nil
 	})
 
 	if err != nil {

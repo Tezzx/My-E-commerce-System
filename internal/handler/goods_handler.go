@@ -4,10 +4,12 @@ import (
 	"order-payment-system/internal/service"
 	"order-payment-system/internal/types"
 
+	"order-payment-system/pkg/logger"
 	"order-payment-system/pkg/response"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type GoodsHandler struct {
@@ -23,7 +25,8 @@ func NewGoodsHandler(goodsService *service.GoodsService) *GoodsHandler {
 func (g *GoodsHandler) GetGoodsList(c *gin.Context) {
 	goods, err := g.goodsService.GetGoodsList()
 	if err != nil {
-		response.Error(c, 500, "获取商品列表失败")
+		logger.Log.Error("获取商品列表失败", zap.Error(err))
+		response.Error(c, 500, 2, "获取商品列表失败")
 		return
 	}
 	response.Success(c, goods)
@@ -34,13 +37,15 @@ func (g *GoodsHandler) GetGoodsDetail(c *gin.Context) {
 
 	id, err := parseUint(goodsID)
 	if err != nil {
-		response.Error(c, 400, "商品ID格式错误")
+		logger.Log.Warn("商品ID格式错误", zap.String("input", goodsID))
+		response.Error(c, 400, 1, "商品ID格式错误")
 		return
 	}
 
 	price, goodsNum, goodsName, err := g.goodsService.GetGoodsInfoByID(id)
 	if err != nil {
-		response.Error(c, 404, "商品不存在")
+		logger.Log.Error("查询商品信息失败", zap.Uint("goods_id", id), zap.Error(err))
+		response.Error(c, 404, 1, "商品不存在")
 		return
 	}
 

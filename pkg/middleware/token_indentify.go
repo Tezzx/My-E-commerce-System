@@ -13,13 +13,13 @@ func TokenIdentify() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			response.Error(c, 401, "没有token")
+			response.Error(c, 401, 1, "没有token")
 			c.Abort()
 			return
 		}
 		const bearerPrefix = "Bearer "
 		if !strings.HasPrefix(authHeader, bearerPrefix) {
-			response.Error(c, 401, "Authorization 格式错误，应为 'Bearer <token>'")
+			response.Error(c, 401, 1, "Authorization 格式错误，应为 'Bearer <token>'")
 			c.Abort()
 			return
 		}
@@ -32,7 +32,7 @@ func TokenIdentify() gin.HandlerFunc {
 		}
 		claims, err := jwt.ValidateJWT(tokenStr)
 		if err != nil {
-			response.Error(c, 401, "token过期或错误")
+			response.Error(c, 401, 1, "token过期或错误")
 			c.Abort()
 			return
 		}

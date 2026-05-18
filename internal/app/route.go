@@ -11,6 +11,7 @@ func SetupRoutes(app *App) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(middleware.CorsMiddleware())
+	r.Use(middleware.RequestLogger())
 	//暂时忽略前端界面
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{

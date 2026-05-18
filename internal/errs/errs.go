@@ -14,6 +14,8 @@ var (
 	// 商品模块
 	GoodsNotFound     = errors.New("商品不存在")
 	InsufficientStock = errors.New("库存不足")
+	CreateGoodsError  = errors.New("商品创建失败")
+	GetGoodsError     = errors.New("商品列表读取失败")
 
 	// 订单模块
 	OrderNotFound = errors.New("订单不存在")

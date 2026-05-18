@@ -3,9 +3,11 @@ package handler
 import (
 	"order-payment-system/internal/service"
 	"order-payment-system/internal/types"
+	"order-payment-system/pkg/logger"
 	"order-payment-system/pkg/response"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type UserHandler struct {
@@ -18,55 +20,80 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 	}
 }
 
-// 注册
+// RegisterUser 用户注册
 func (u *UserHandler) RegisterUser(c *gin.Context) {
 	var req types.RegisterRequest
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		response.Error(c, 400, "参数错误")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log.Warn("注册 - 参数绑定失败", zap.Error(err))
+		response.Error(c, 400, 1, "参数错误")
 		return
 	}
+
 	userID, err := u.userService.RegisterUser(req.Username, req.Password)
 	if err != nil {
-		response.Error(c, 400, "新用户创建失败")
+		logger.Log.Warn("注册失败",
+			zap.String("username", req.Username),
+			zap.Error(err))
+		response.Error(c, 400, 1, "新用户创建失败")
 		return
 	}
 
 	token, err := u.userService.TokenCreate(userID)
 	if err != nil {
-		response.Error(c, 500, "服务器无法生成token")
+		logger.Log.Error("注册成功但生成 token 失败",
+			zap.Uint("user_id", userID),
+			zap.Error(err))
+		response.Error(c, 500, 1, "服务器无法生成token")
 		return
 	}
-	response.Success(c, token)
 
+	logger.Log.Info("用户注册成功",
+		zap.Uint("user_id", userID),
+		zap.String("username", req.Username))
+	response.Success(c, token)
 }
 
-// 登录
+// LoginUser 用户登录
 func (u *UserHandler) LoginUser(c *gin.Context) {
 	var req types.LoginRequest
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		response.Error(c, 400, "参数错误")
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log.Warn("登录 - 参数绑定失败", zap.Error(err))
+		response.Error(c, 400, 1, "参数错误")
 		return
 	}
+
 	userID, err := u.userService.LoginUser(req.Username, req.Password)
 	if err != nil {
-		response.Error(c, 400, "账户或密码错误")
+		// 注意：不要暴露具体是用户名错还是密码错（防探测）
+		logger.Log.Warn("登录失败",
+			zap.String("username", req.Username))
+		response.Error(c, 400, 1, "账户或密码错误")
 		return
 	}
+
 	token, err := u.userService.TokenCreate(userID)
 	if err != nil {
-		response.Error(c, 500, "服务器无法生成token")
+		logger.Log.Error("登录成功但生成 token 失败",
+			zap.Uint("user_id", userID),
+			zap.Error(err))
+		response.Error(c, 500, 1, "服务器无法生成token")
 		return
 	}
-	response.Success(c, token)
 
+	logger.Log.Info("用户登录成功",
+		zap.Uint("user_id", userID),
+		zap.String("username", req.Username))
+	response.Success(c, token)
 }
+
+// GetAllUsers 获取所有用户（通常仅管理员可用）
 func (u *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := u.userService.GetAllUsers()
 	if err != nil {
-		response.Error(c, 500, "获取用户列表失败")
+		logger.Log.Error("获取用户列表失败", zap.Error(err))
+		response.Error(c, 500, 1, "获取用户列表失败")
 		return
 	}
+	// 成功日志可省略（非关键操作），或降级为 Debug
 	response.Success(c, users)
 }
