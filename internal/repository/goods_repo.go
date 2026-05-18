@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math/rand"
+
+	"golang.org/x/sync/singleflight"
+
 	"order-payment-system/internal/model"
 	"strconv"
 	"time"
@@ -15,12 +19,14 @@ import (
 type GoodsRepo struct {
 	db  *gorm.DB
 	rdb *redis.Client
+	sf  *singleflight.Group
 }
 
 func NewGoodsRepo(db *gorm.DB, rdb *redis.Client) *GoodsRepo {
 	return &GoodsRepo{
 		db:  db,
 		rdb: rdb,
+		sf:  &singleflight.Group{},
 	}
 }
 
@@ -122,37 +128,67 @@ func (g *GoodsRepo) GetGoodsByID(goodsID uint) (price, goodsNum uint, goodsName 
 	ctx := context.Background()
 	key := "goods:info:" + strconv.FormatUint(uint64(goodsID), 10)
 
-	// 1. 尝试从 Redis 读取
+	//直接查 Redis
 	val, err := g.rdb.Get(ctx, key).Result()
-	if err == redis.Nil {
-		// 2. 缓存未命中，回源到 MySQL
+	if err == nil {
+		// 防缓存穿透
+		if val == "EMPTY" {
+			return 0, 0, "", errors.New("商品不存在")
+		}
+
+		// 正常解析 JSON
+		var goods model.Goods
+		if err := json.Unmarshal([]byte(val), &goods); err != nil {
+			g.rdb.Del(ctx, key)
+			return 0, 0, "", errors.New("缓存数据异常")
+		}
+		return goods.Price, goods.Goodsnum, goods.Goodsname, nil
+	} else if err != redis.Nil {
+		return 0, 0, "", err
+	}
+
+	//防击穿 (Singleflight)
+
+	type goodsResult struct {
+		Price     uint
+		GoodsNum  uint
+		GoodsName string
+	}
+
+	result, err, _ := g.sf.Do(key, func() (interface{}, error) {
+
 		var goods model.Goods
 		dbErr := g.db.Select("id, price, goodsnum, goodsname").
 			Where("id = ?", goodsID).
 			First(&goods).Error
-		if dbErr != nil {
-			return 0, 0, "", dbErr
+
+		// 防缓存穿透
+		if dbErr == gorm.ErrRecordNotFound {
+			g.rdb.Set(ctx, key, "EMPTY", 5*time.Minute)
+			return nil, errors.New("商品不存在")
+		} else if dbErr != nil {
+			return nil, dbErr
 		}
 
-		// 3. 回填缓存
 		data, _ := json.Marshal(goods)
-		// 设置 TTL 避免永久脏数据
-		g.rdb.Set(ctx, key, data, 1*time.Hour)
 
-		return goods.Price, goods.Goodsnum, goods.Goodsname, nil
-	} else if err != nil {
+		// 防缓存雪崩
+		ttl := time.Hour + time.Duration(rand.Intn(10))*time.Minute
+		g.rdb.Set(ctx, key, data, ttl)
+
+		return &goodsResult{
+			Price:     goods.Price,
+			GoodsNum:  goods.Goodsnum,
+			GoodsName: goods.Goodsname,
+		}, nil
+	})
+
+	if err != nil {
 		return 0, 0, "", err
 	}
 
-	// 4. Redis 命中，解析 JSON
-	var goods model.Goods
-	if err := json.Unmarshal([]byte(val), &goods); err != nil {
-		// JSON 损坏，可选择删除 key 并回源
-		g.rdb.Del(ctx, key)
-		return g.GetGoodsByID(goodsID) // 递归回源（或改用 DB 查询）
-	}
-
-	return goods.Price, goods.Goodsnum, goods.Goodsname, nil
+	res := result.(*goodsResult)
+	return res.Price, res.GoodsNum, res.GoodsName, nil
 }
 
 // 查询所有商品

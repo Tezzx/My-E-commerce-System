@@ -28,6 +28,7 @@ func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.Good
 }
 
 func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (string, error) {
+	// ========== 1. 查询商品 & 扣减库存==========
 	price, _, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
 	if err != nil {
 		logger.Log.Warn("创建订单 - 商品不存在", zap.Uint("goods_id", goodsID))
@@ -38,20 +39,39 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 	if err != nil {
 		logger.Log.Error("创建订单 - 扣减库存失败",
 			zap.Uint("goods_id", goodsID),
-			zap.Uint("buy_num", buyNum),
+			zap.Uint("buyNum", buyNum),
 			zap.Error(err))
 		return "", err
 	}
 	if !success {
 		logger.Log.Warn("创建订单 - 库存不足",
 			zap.Uint("goods_id", goodsID),
-			zap.Uint("buy_num", buyNum))
+			zap.Uint("buyNum", buyNum))
 		return "", errors.New("库存不足")
 	}
 
+	// ========== 2.设置库存补偿保护 ==========
+	needCompensate := true
+	defer func() {
+		if needCompensate {
+			if compErr := o.goodsRepo.IncrementStock(goodsID, int64(buyNum)); compErr != nil {
+				logger.Log.Error("创建订单 - 补偿库存失败！需人工介入",
+					zap.Uint("goods_id", goodsID),
+					zap.Uint("buyNum", buyNum),
+					zap.Uint("user_id", userID),
+					zap.Error(compErr))
+			} else {
+				logger.Log.Info("创建订单 - 库存补偿成功",
+					zap.Uint("goods_id", goodsID),
+					zap.Uint("buyNum", buyNum),
+					zap.Uint("user_id", userID))
+			}
+		}
+	}()
+
+	// ========== 3. 构建订单消息==========
 	orderNo := o.generateOrderNo(goodsID, userID)
 	totalPrice := price * buyNum
-
 	msg := &model.Order{
 		OrderNo:    orderNo,
 		UserID:     userID,
@@ -71,16 +91,25 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 		return "", err
 	}
 
+	// ========== 4.获取通道 + 启用 Confirm + 阻塞等待 Ack ==========
 	ch, err := o.mq.Channel()
 	if err != nil {
-		logger.Log.Error("创建订单 - 获取MQ通道失败",
-			zap.String("order_no", orderNo),
-			zap.Error(err))
+		logger.Log.Error("创建订单 - 获取MQ通道失败", zap.String("order_no", orderNo), zap.Error(err))
 		return "", err
 	}
 	defer ch.Close()
 
-	err = ch.Publish(
+	// 启用 Publisher Confirm 模式
+	if err := ch.Confirm(false); err != nil {
+		logger.Log.Error("创建订单 - 启用Confirm模式失败", zap.String("order_no", orderNo), zap.Error(err))
+		return "", err
+	}
+
+	//注册确认监听
+	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
+	// 发布持久化消息
+	if err := ch.Publish(
 		"",
 		"order_create_queue",
 		false,
@@ -91,13 +120,28 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 			Timestamp:    time.Now(),
 			DeliveryMode: amqp.Persistent,
 		},
-	)
-	if err != nil {
-		logger.Log.Error("创建订单 - 发布MQ消息失败",
-			zap.String("order_no", orderNo),
-			zap.Error(err))
+	); err != nil {
+		logger.Log.Error("创建订单 - 发布MQ消息失败", zap.String("order_no", orderNo), zap.Error(err))
 		return "", err
 	}
+
+	// 阻塞等待 Broker Ack
+	select {
+	case confirm := <-confirms:
+		if !confirm.Ack {
+			logger.Log.Error("创建订单 - 消息被Broker拒绝(Nack)", zap.String("order_no", orderNo))
+			return "", errors.New("消息被Broker拒绝(Nack)")
+		}
+
+	case <-time.After(3 * time.Second):
+		logger.Log.Error("创建订单 - 等待Broker确认超时", zap.String("order_no", orderNo))
+		return "", errors.New("等待Broker确认超时")
+	}
+
+	// ========== 5.确认成功 ==========
+	needCompensate = false
+	logger.Log.Info("创建订单 - 消息已安全抵达Broker",
+		zap.String("order_no", orderNo))
 
 	return orderNo, nil
 }
