@@ -46,7 +46,6 @@ func (u *UserService) RegisterUser(userName, userPassword string) (uint, error) 
 	user := model.User{
 		Username: userName,
 		Password: hashedPassword,
-		Balance:  100000,
 	}
 
 	id, err := u.userRepo.CreateUser(&user)

@@ -1,12 +1,14 @@
 package service
 
 import (
-	"errors"
+	"context"
+	"fmt"
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
 	"order-payment-system/pkg/logger"
-	"order-payment-system/pkg/util"
 
+	"github.com/go-pay/gopay"
+	"github.com/go-pay/gopay/alipay"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -20,12 +22,29 @@ type PaymentService struct {
 	rdb       *redis.Client
 }
 
-func NewPaymentService(orderRepo *repository.OrderRepo, userRepo *repository.UserRepo, goodsRepo *repository.GoodsRepo, db *gorm.DB) *PaymentService {
+var appID string
+var privatekey string
+
+func NewPaymentService(orderRepo *repository.OrderRepo, userRepo *repository.UserRepo, goodsRepo *repository.GoodsRepo, db *gorm.DB, rdb *redis.Client) *PaymentService {
 	return &PaymentService{
 		orderRepo: orderRepo,
 		userRepo:  userRepo,
 		goodsRepo: goodsRepo,
 		db:        db,
+		rdb:       rdb,
+	}
+}
+
+var aliClient *alipay.Client
+
+func InitialPay(appId, privateKey string) {
+	isProd := false
+	appID := appId
+	privatekey := privateKey
+	var err error
+	aliClient, err = alipay.NewClient(appID, privatekey, isProd)
+	if err != nil {
+		logger.Log.Error("初始化支付宝客户端失败", zap.Error(err))
 	}
 }
 
@@ -37,65 +56,52 @@ func (p *PaymentService) GetOrder(orderNo string) (*model.Order, error) {
 	return order, err
 }
 
-func (p *PaymentService) Settling(order *model.Order, userPassword string) error {
-	if order.Status != 0 {
-		logger.Log.Warn("支付 - 订单状态异常，拒绝支付",
-			zap.String("order_no", order.OrderNo),
-			zap.Int("status", order.Status))
-		return errors.New("订单已支付或失效")
+// GenerateAlipayUrl 调用支付宝SDK生成支付链接
+func (p *PaymentService) GenerateAlipayUrl(order *model.Order) (string, error) {
+
+	bm := make(gopay.BodyMap)
+	bm.Set("subject", order.GoodsName)
+	bm.Set("out_trade_no", order.OrderNo)
+	bm.Set("product_code", "FAST_INSTANT_TRADE_PAY")
+	amount := float64(order.TotalPrice)
+	bm.Set("total_amount", fmt.Sprintf("%.2f", amount))
+	bm.Set("notify_url", "https://公网域名/api/notify/alipay")
+	bm.Set("return_url", "http://localhost:8080/pay/success")
+
+	payUrl, err := aliClient.TradePagePay(context.Background(), bm)
+	if err != nil {
+		logger.Log.Error("生成支付宝链接失败", zap.Error(err))
+		return "", err
+	}
+
+	return payUrl, nil
+}
+
+func (p *PaymentService) HandlePaySuccess(orderNo, tradeNo string) error {
+	order, err := p.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return err
+	}
+
+	if order.Status == 1 {
+		return nil
 	}
 
 	return p.db.Transaction(func(tx *gorm.DB) error {
-		userRepoTx := repository.NewUserRepo(tx, p.rdb)
 		orderRepoTx := repository.NewOrderRepo(tx, p.rdb)
 
-		password, err := userRepoTx.GetByUserID(order.UserID)
+		err := tx.Model(&model.Order{}).Where("order_no = ?", orderNo).Updates(map[string]interface{}{
+			"status":      1,
+			"trade_no":    tradeNo,
+			"pay_channel": "alipay",
+		}).Error
 		if err != nil {
-			logger.Log.Error("支付 - 获取用户密码失败",
-				zap.Uint("user_id", order.UserID),
-				zap.String("order_no", order.OrderNo),
-				zap.Error(err))
 			return err
 		}
 
-		err = util.VerifyPassword(userPassword, password)
-		if err != nil {
-			logger.Log.Warn("支付 - 密码验证失败",
-				zap.Uint("user_id", order.UserID),
-				zap.String("order_no", order.OrderNo))
-			return err
-		}
+		_ = orderRepoTx.DelQueue(orderNo)
 
-		err = userRepoTx.Deduct(order.UserID, order.TotalPrice)
-		if err != nil {
-			logger.Log.Error("支付 - 扣款失败",
-				zap.Uint("user_id", order.UserID),
-				zap.String("order_no", order.OrderNo),
-				zap.Uint("amount", order.TotalPrice),
-				zap.Error(err))
-			return err
-		}
-
-		err = orderRepoTx.ChangeStatusToPayed(order.OrderNo)
-		if err != nil {
-			logger.Log.Error("支付 - 更新订单状态失败",
-				zap.String("order_no", order.OrderNo),
-				zap.Error(err))
-			return err
-		}
-
-		err = orderRepoTx.DelQueue(order.OrderNo)
-		if err != nil {
-			logger.Log.Warn("支付 - 从超时队列删除失败（可容忍）",
-				zap.String("order_no", order.OrderNo),
-				zap.Error(err))
-		}
-
-		logger.Log.Info("支付成功",
-			zap.String("order_no", order.OrderNo),
-			zap.Uint("user_id", order.UserID),
-			zap.Uint("amount", order.TotalPrice))
-
+		logger.Log.Info("第三方支付成功并处理完成", zap.String("order_no", orderNo))
 		return nil
 	})
 }

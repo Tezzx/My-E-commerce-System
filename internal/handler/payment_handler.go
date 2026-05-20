@@ -2,12 +2,11 @@ package handler
 
 import (
 	"order-payment-system/internal/service"
-	"order-payment-system/internal/types"
 	"order-payment-system/pkg/logger"
 	"order-payment-system/pkg/response"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"github.com/go-pay/gopay/alipay"
 )
 
 type PaymentHandler struct {
@@ -20,44 +19,48 @@ func NewPaymentHandler(paymentService *service.PaymentService) *PaymentHandler {
 	}
 }
 
-// Settle 处理支付请求
-func (p *PaymentHandler) Settle(c *gin.Context) {
-	var req types.PayRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Log.Warn("支付请求 - 参数绑定失败", zap.Error(err))
-		response.Error(c, 400, 1, "无订单号")
-		return
-	}
+var AlipayKey string
 
-	order, err := p.paymentService.GetOrder(req.OrderNo)
+// Create 提出支付请求
+func (p *PaymentHandler) CreatePay(c *gin.Context) {
+
+	orderNo := c.Query("orderNo")
+	order, _ := p.paymentService.GetOrder(orderNo)
+
+	payUrl, err := p.paymentService.GenerateAlipayUrl(order)
 	if err != nil {
-		logger.Log.Warn("支付请求 - 订单不存在",
-			zap.String("order_no", req.OrderNo))
-		response.Error(c, 400, 1, "订单号错误")
+		response.Error(c, 500, 1, "生成支付链接失败")
 		return
 	}
 
-	if order.Status != 0 {
-		logger.Log.Info("支付请求 - 订单状态异常，拒绝重复支付",
-			zap.String("order_no", req.OrderNo),
-			zap.Int("status", order.Status))
-		response.Error(c, 400, 1, "订单已支付/已取消，无需重复支付")
-		return
-	}
+	response.Success(c, payUrl)
+}
 
-	logger.Log.Info("开始执行支付",
-		zap.String("order_no", req.OrderNo))
+func (p *PaymentHandler) AlipayNotify(c *gin.Context) {
 
-	err = p.paymentService.Settling(order, req.Password)
+	bm, err := alipay.ParseNotifyToBodyMap(c.Request)
 	if err != nil {
-		logger.Log.Error("支付失败",
-			zap.String("order_no", req.OrderNo),
-			zap.Error(err))
-		response.Error(c, 400, 1, err.Error())
+		response.Error(c, 500, 1, "支付错误")
 		return
 	}
 
-	logger.Log.Info("支付成功",
-		zap.String("order_no", req.OrderNo))
-	response.Success(c, "支付成功，余额已扣减")
+	ok, err := alipay.VerifySign(AlipayKey, bm)
+	if !ok || err != nil {
+		logger.Log.Error("支付宝回调验签失败")
+		c.String(200, "fail")
+		return
+	}
+
+	tradeStatus := bm.GetString("trade_status")
+	orderNo := bm.GetString("out_trade_no")
+	tradeNo := bm.GetString("trade_no")
+
+	if tradeStatus == "TRADE_SUCCESS" {
+		err = p.paymentService.HandlePaySuccess(orderNo, tradeNo)
+		if err != nil {
+			c.String(200, "fail")
+			return
+		}
+	}
+	c.String(200, "success")
 }

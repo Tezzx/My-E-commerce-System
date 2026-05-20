@@ -11,10 +11,10 @@ type Claims struct {
 	jwt.RegisteredClaims      // 包含过期时间、签发者等标准字段
 }
 
-var JwtKey []byte
+var jwtKey []byte
 
 func InitJwtKey(jwt string) {
-	JwtKey = []byte(jwt)
+	jwtKey = []byte(jwt)
 }
 
 // 生成token
@@ -30,7 +30,7 @@ func GenerateJWT(userID uint) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(JwtKey)
+	return token.SignedString(jwtKey)
 }
 
 // 解析token
@@ -38,7 +38,7 @@ func ValidateJWT(tokenStr string) (*Claims, error) {
 	claims := &Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return JwtKey, nil
+		return jwtKey, nil
 	})
 
 	if err != nil {

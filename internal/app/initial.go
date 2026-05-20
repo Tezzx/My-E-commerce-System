@@ -23,6 +23,8 @@ func InitializeApp() (*App, string) {
 	}
 	port := strconv.Itoa(cfg.Server.Port)
 	jwt.InitJwtKey(string(cfg.Jwt.Key))
+	service.InitialPay(cfg.AliPay.AppID, cfg.AliPay.PrivateKey)
+	handler.AlipayKey = cfg.AliPay.AliPayKey
 	// 连接数据库
 	db, err := database.InitMySQL(&cfg.Database)
 	if err != nil {
@@ -64,7 +66,7 @@ func InitializeApp() (*App, string) {
 	orderService := service.NewOrderService(orderRepo, goodsRepo, mq)
 	orderHandler := handler.NewOrderHandler(orderService)
 
-	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo, db)
+	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo, db, rdb)
 	paymentHandler := handler.NewPaymentHandler(paymentService)
 
 	//job部分

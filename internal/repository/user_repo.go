@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"errors"
 	"order-payment-system/internal/model"
 
 	"github.com/redis/go-redis/v9"
@@ -64,21 +63,6 @@ func (u *UserRepo) GetID(username string) (uint, error) {
 		return 0, err
 	}
 	return userID, nil
-}
-
-func (u *UserRepo) Deduct(userId, balance uint) error {
-	var user model.User
-	err := u.db.Where("id=?", userId).Select("balance").First(&user).Error
-	if err != nil {
-		return err
-	}
-	if balance > user.Balance {
-		return errors.New("余额不足")
-	} else {
-		newBalance := user.Balance - balance
-		err = u.db.Model(&model.User{}).Where("id = ?", userId).Update("balance", newBalance).Error
-		return err
-	}
 }
 
 func (u *UserRepo) GetAllUsers() ([]model.User, error) {

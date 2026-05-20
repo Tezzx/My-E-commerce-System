@@ -29,6 +29,7 @@ func SetupRoutes(app *App) *gin.Engine {
 
 	r.POST("/login", app.UserHandler.LoginUser)
 	r.POST("/register", app.UserHandler.RegisterUser)
+	r.POST("/api/notify/alipay", app.PaymentHandler.AlipayNotify)
 
 	home := r.Group("/home")
 	home.Use(middleware.TokenIdentify())
@@ -43,7 +44,7 @@ func SetupRoutes(app *App) *gin.Engine {
 		}
 		pay := home.Group("/pay")
 		{
-			pay.POST("/", app.PaymentHandler.Settle)
+			pay.POST("/create", app.PaymentHandler.CreatePay)
 		}
 	}
 	//辅助功能

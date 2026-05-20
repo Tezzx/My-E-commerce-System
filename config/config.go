@@ -8,6 +8,7 @@ type Config struct {
 	Database DatabaseConfig
 	Redis    RedisConfig
 	RabbitMQ RabbitMQConfig
+	AliPay   AliPay
 }
 
 type JwtConfig struct {
@@ -40,6 +41,12 @@ type RabbitMQConfig struct {
 	User     string
 	Password string
 	VHost    string
+}
+
+type AliPay struct {
+	AppID      string
+	PrivateKey string
+	AliPayKey  string
 }
 
 func LoadConfig() (*Config, error) {

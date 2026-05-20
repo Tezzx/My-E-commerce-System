@@ -86,7 +86,7 @@ func (u *UserHandler) LoginUser(c *gin.Context) {
 	response.Success(c, token)
 }
 
-// GetAllUsers 获取所有用户（通常仅管理员可用）
+// GetAllUsers 获取所有用户
 func (u *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := u.userService.GetAllUsers()
 	if err != nil {
@@ -94,6 +94,6 @@ func (u *UserHandler) GetAllUsers(c *gin.Context) {
 		response.Error(c, 500, 1, "获取用户列表失败")
 		return
 	}
-	// 成功日志可省略（非关键操作），或降级为 Debug
+
 	response.Success(c, users)
 }
