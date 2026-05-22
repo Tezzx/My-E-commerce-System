@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"order-payment-system/config"
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
 	"order-payment-system/pkg/logger"
@@ -15,38 +16,32 @@ import (
 )
 
 type PaymentService struct {
+	tm        *repository.TransactionManager
 	orderRepo *repository.OrderRepo
 	userRepo  *repository.UserRepo
 	goodsRepo *repository.GoodsRepo
 	db        *gorm.DB
 	rdb       *redis.Client
+	aliClient *alipay.Client
+	notifyUrl string
 }
 
-var appID string
-var privatekey string
+func NewPaymentService(tm *repository.TransactionManager, orderRepo *repository.OrderRepo, userRepo *repository.UserRepo, goodsRepo *repository.GoodsRepo, db *gorm.DB, rdb *redis.Client, cfg *config.AliPay) *PaymentService {
+	isProd := false
+	aliClient, err := alipay.NewClient(cfg.AppID, cfg.PrivateKey, isProd)
+	if err != nil {
+		logger.Log.Error("初始化支付宝客户端失败", zap.Error(err))
+	}
 
-func NewPaymentService(orderRepo *repository.OrderRepo, userRepo *repository.UserRepo, goodsRepo *repository.GoodsRepo, db *gorm.DB, rdb *redis.Client) *PaymentService {
 	return &PaymentService{
+		tm:        tm,
 		orderRepo: orderRepo,
 		userRepo:  userRepo,
 		goodsRepo: goodsRepo,
 		db:        db,
 		rdb:       rdb,
-	}
-}
-
-var aliClient *alipay.Client
-var notifyUrl string
-
-func InitialPay(appId, privateKey, url string) {
-	isProd := false
-	appID := appId
-	privatekey := privateKey
-	notifyUrl = url
-	var err error
-	aliClient, err = alipay.NewClient(appID, privatekey, isProd)
-	if err != nil {
-		logger.Log.Error("初始化支付宝客户端失败", zap.Error(err))
+		aliClient: aliClient,
+		notifyUrl: cfg.NotifyUrl,
 	}
 }
 
@@ -67,10 +62,10 @@ func (p *PaymentService) GenerateAlipayUrl(order *model.Order) (string, error) {
 	bm.Set("product_code", "FAST_INSTANT_TRADE_PAY")
 	amount := float64(order.TotalPrice)
 	bm.Set("total_amount", fmt.Sprintf("%.2f", amount))
-	bm.Set("notify_url", notifyUrl)
+	bm.Set("notify_url", p.notifyUrl)
 	bm.Set("return_url", "http://localhost:8080/pay/success")
 
-	payUrl, err := aliClient.TradePagePay(context.Background(), bm)
+	payUrl, err := p.aliClient.TradePagePay(context.Background(), bm)
 	if err != nil {
 		logger.Log.Error("生成支付宝链接失败", zap.Error(err))
 		return "", err
@@ -89,19 +84,28 @@ func (p *PaymentService) HandlePaySuccess(orderNo, tradeNo string) error {
 		return nil
 	}
 
-	return p.db.Transaction(func(tx *gorm.DB) error {
-		orderRepoTx := repository.NewOrderRepo(tx, p.rdb)
+	return p.tm.Transaction(func(txManager *repository.TransactionManager) error {
 
-		err := tx.Model(&model.Order{}).Where("order_no = ?", orderNo).Updates(map[string]interface{}{
+		goodsRepoTx := txManager.GoodsRepo()
+
+		res := txManager.OrderRepo().ReturnDB().Model(&model.Order{}).Where("order_no = ? AND status = ?", orderNo, 0).Updates(map[string]interface{}{
 			"status":      1,
 			"trade_no":    tradeNo,
 			"pay_channel": "alipay",
-		}).Error
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			// 说明已经被其他并发请求处理，直接返回成功以保证幂等性
+			return nil
+		}
+
+		// 扣减 MySQL 库存
+		err = goodsRepoTx.DeductStockSQL(order.GoodsID, int64(order.BuyNum))
 		if err != nil {
 			return err
 		}
-
-		_ = orderRepoTx.DelQueue(orderNo)
 
 		logger.Log.Info("第三方支付成功并处理完成", zap.String("order_no", orderNo))
 		return nil

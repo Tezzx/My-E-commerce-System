@@ -65,6 +65,31 @@ func DeclareQueueWithDLX(ch *amqp.Channel, queueName string) error {
 	return err
 }
 
+// 声明延迟队列和对应的超时消费队列
+func DeclareDelayTimeoutQueue(ch *amqp.Channel) error {
+	// 1. 声明超时执行的交换机和队列
+	timeoutExchange := "order_timeout_exchange"
+	if err := ch.ExchangeDeclare(timeoutExchange, "direct", true, false, false, false, nil); err != nil {
+		return err
+	}
+	timeoutQueue := "order_timeout_queue"
+	if _, err := ch.QueueDeclare(timeoutQueue, true, false, false, false, nil); err != nil {
+		return err
+	}
+	if err := ch.QueueBind(timeoutQueue, "timeout", timeoutExchange, false, nil); err != nil {
+		return err
+	}
+
+	// 2. 声明中间延迟队列（没有消费者，通过 TTL 让消息死信滑入超时队列）
+	delayArgs := amqp.Table{
+		"x-dead-letter-exchange":    timeoutExchange,
+		"x-dead-letter-routing-key": "timeout",
+		"x-message-ttl":             int32(1800000), // 30分钟
+	}
+	_, err := ch.QueueDeclare("order_delay_queue", true, false, false, false, delayArgs)
+	return err
+}
+
 // 声明一个队列（如果不存在则创建）
 func DeclareQueue(ch *amqp.Channel, queueName string) error {
 	_, err := ch.QueueDeclare(

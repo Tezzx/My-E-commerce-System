@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"os"
 	"strings"
 
@@ -9,6 +10,19 @@ import (
 )
 
 var Log *zap.Logger
+
+// Ctx 提取上下文中的 TraceID 并返回绑定了该字段的子 Logger
+func Ctx(ctx context.Context) *zap.Logger {
+	if ctx == nil {
+		return Log
+	}
+
+	val := ctx.Value("trace_id")
+	if traceID, ok := val.(string); ok && traceID != "" {
+		return Log.With(zap.String("trace_id", traceID))
+	}
+	return Log
+}
 
 func Init() error {
 	env := strings.ToLower(os.Getenv("ENV"))

@@ -7,23 +7,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
+	"github.com/streadway/amqp"
 )
 
 // OrderTimeoutJob 超时订单任务
 type OrderTimeoutJob struct {
 	orderService *service.OrderService
-	rdb          *redis.Client
+	mq           *amqp.Connection
 }
 
-func NewOrderTimeoutJob(orderService *service.OrderService, rdb *redis.Client) *OrderTimeoutJob {
+func NewOrderTimeoutJob(orderService *service.OrderService, mq *amqp.Connection) *OrderTimeoutJob {
 	return &OrderTimeoutJob{
 		orderService: orderService,
-		rdb:          rdb,
+		mq:           mq,
 	}
 }
 
-// Start 开始死循环监听超时订单
+// Start 监听超时订单队列
 func (j *OrderTimeoutJob) Start(ctx context.Context, wg *sync.WaitGroup) {
 	fmt.Println("启动超时订单监听任务...")
 	wg.Add(1)
@@ -31,35 +31,63 @@ func (j *OrderTimeoutJob) Start(ctx context.Context, wg *sync.WaitGroup) {
 	go func() {
 		defer wg.Done()
 		for {
-			select {
-			case <-ctx.Done():
+			err := j.consumeTimeoutMessages(ctx)
+			if err != nil {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					time.Sleep(5 * time.Second)
+				}
+			} else {
 				return
-			default:
+			}
+		}
+	}()
+}
+
+func (j *OrderTimeoutJob) consumeTimeoutMessages(ctx context.Context) error {
+	ch, err := j.mq.Channel()
+	if err != nil {
+		return err
+	}
+	defer ch.Close()
+
+	if err := ch.Qos(10, 0, false); err != nil {
+		return err
+	}
+
+	msgs, err := ch.Consume(
+		"order_timeout_queue",
+		"",
+		false, // manual ack
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case d, ok := <-msgs:
+			if !ok {
+				return fmt.Errorf("channel closed")
 			}
 
-			now := time.Now().Unix()
-
-			orderNos, err := j.rdb.ZRangeByScore(ctx, "order:timeout:queue", &redis.ZRangeBy{
-				Min: "-inf",
-				Max: fmt.Sprintf("%d", now),
-			}).Result()
-
+			orderNo := string(d.Body)
+			err := j.orderService.CancelOrder(orderNo)
 			if err != nil {
-				fmt.Println("获取超时订单失败：", err)
-				time.Sleep(1 * time.Second)
+				fmt.Println("取消订单失败，可能稍后重试：", orderNo)
+				d.Nack(false, true)
 				continue
 			}
 
-			//取消超时订单
-			for _, orderNo := range orderNos {
-				err := j.orderService.CancelOrder(orderNo)
-				if err != nil {
-					fmt.Println("取消订单失败：", orderNo)
-					continue
-				}
-			}
-
-			time.Sleep(1 * time.Second)
+			d.Ack(false)
 		}
-	}()
+	}
 }

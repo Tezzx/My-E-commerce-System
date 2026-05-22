@@ -23,8 +23,6 @@ func InitializeApp() (*App, string) {
 	}
 	port := strconv.Itoa(cfg.Server.Port)
 	jwt.InitJwtKey(string(cfg.Jwt.Key))
-	service.InitialPay(cfg.AliPay.AppID, cfg.AliPay.PrivateKey, cfg.AliPay.NotifyUrl)
-	handler.AlipayKey = cfg.AliPay.AliPayKey
 	// 连接数据库
 	db, err := database.InitMySQL(&cfg.Database)
 	if err != nil {
@@ -51,6 +49,7 @@ func InitializeApp() (*App, string) {
 	ch, _ := mq.Channel()
 	defer ch.Close()
 	database.DeclareQueueWithDLX(ch, "order_create_queue")
+	database.DeclareDelayTimeoutQueue(ch)
 
 	// 依赖注入
 	//internal部分
@@ -66,11 +65,11 @@ func InitializeApp() (*App, string) {
 	orderService := service.NewOrderService(orderRepo, goodsRepo, mq)
 	orderHandler := handler.NewOrderHandler(orderService)
 
-	paymentService := service.NewPaymentService(orderRepo, userRepo, goodsRepo, db, rdb)
-	paymentHandler := handler.NewPaymentHandler(paymentService)
+	paymentService := service.NewPaymentService(repository.NewTransactionManager(db, rdb), orderRepo, userRepo, goodsRepo, db, rdb, &cfg.AliPay)
+	paymentHandler := handler.NewPaymentHandler(paymentService, cfg.AliPay.AliPayKey)
 
 	//job部分
-	orderTimeout := job.NewOrderTimeoutJob(orderService, rdb)
+	orderTimeout := job.NewOrderTimeoutJob(orderService, mq)
 	orderCreate := job.NewOrderCreateConsumer(orderService, mq)
 	cachePreheat := job.NewGoodsCacheWarmJob(goodsService, rdb, db)
 

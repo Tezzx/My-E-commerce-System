@@ -43,14 +43,14 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	orderNo, err := o.orderService.CreateOrder(userID, uint(req.GoodsID), uint(req.BuyNum))
+	orderNo, err := o.orderService.CreateOrder(c.Request.Context(), userID, uint(req.GoodsID), uint(req.BuyNum))
 	if err != nil {
-		logger.Log.Error("创建订单失败", zap.Uint("user_id", userID), zap.Uint("goods_id", uint(req.GoodsID)), zap.Uint("buy_num", uint(req.BuyNum)), zap.Error(err))
+		logger.Ctx(c.Request.Context()).Error("创建订单失败", zap.Uint("user_id", userID), zap.Uint("goods_id", uint(req.GoodsID)), zap.Uint("buy_num", uint(req.BuyNum)), zap.Error(err))
 		response.Error(c, 500, 1, "订单创建失败")
 		return
 	}
 
-	logger.Log.Info("订单创建成功", zap.String("order_no", orderNo))
+	logger.Ctx(c.Request.Context()).Info("订单创建成功", zap.String("order_no", orderNo))
 	response.Success(c, orderNo)
 }
 

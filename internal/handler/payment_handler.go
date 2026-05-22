@@ -11,15 +11,15 @@ import (
 
 type PaymentHandler struct {
 	paymentService *service.PaymentService
+	alipayKey      string
 }
 
-func NewPaymentHandler(paymentService *service.PaymentService) *PaymentHandler {
+func NewPaymentHandler(paymentService *service.PaymentService, alipayKey string) *PaymentHandler {
 	return &PaymentHandler{
 		paymentService: paymentService,
+		alipayKey:      alipayKey,
 	}
 }
-
-var AlipayKey string
 
 // Create 提出支付请求
 func (p *PaymentHandler) CreatePay(c *gin.Context) {
@@ -44,7 +44,7 @@ func (p *PaymentHandler) AlipayNotify(c *gin.Context) {
 		return
 	}
 
-	ok, err := alipay.VerifySign(AlipayKey, bm)
+	ok, err := alipay.VerifySign(p.alipayKey, bm)
 	if !ok || err != nil {
 		logger.Log.Error("支付宝回调验签失败")
 		c.String(200, "fail")

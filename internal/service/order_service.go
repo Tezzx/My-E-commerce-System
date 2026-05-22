@@ -1,17 +1,23 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
 	"order-payment-system/pkg/logger"
-	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 )
+
+var orderSeq uint32
 
 type OrderService struct {
 	orderRepo *repository.OrderRepo
@@ -27,11 +33,11 @@ func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.Good
 	}
 }
 
-func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (string, error) {
+func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uint, buyNum uint) (string, error) {
 	// ========== 1. 查询商品 & 扣减库存==========
 	price, _, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
 	if err != nil {
-		logger.Log.Warn("创建订单 - 商品不存在", zap.Uint("goods_id", goodsID))
+		logger.Ctx(ctx).Warn("创建订单 - 商品不存在", zap.Uint("goods_id", goodsID))
 		return "", err
 	}
 
@@ -101,9 +107,16 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 
 	// 启用 Publisher Confirm 模式
 	if err := ch.Confirm(false); err != nil {
-		logger.Log.Error("创建订单 - 启用Confirm模式失败", zap.String("order_no", orderNo), zap.Error(err))
+		logger.Ctx(ctx).Error("创建订单 - 启用Confirm模式失败", zap.String("order_no", orderNo), zap.Error(err))
 		return "", err
 	}
+
+	// 传递 traceID
+	traceID := ""
+	if val := ctx.Value("trace_id"); val != nil {
+		traceID = val.(string)
+	}
+	headers := amqp.Table{"x-trace-id": traceID}
 
 	//注册确认监听
 	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
@@ -115,13 +128,14 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 		false,
 		false,
 		amqp.Publishing{
+			Headers:      headers,
 			ContentType:  "application/json",
 			Body:         body,
 			Timestamp:    time.Now(),
 			DeliveryMode: amqp.Persistent,
 		},
 	); err != nil {
-		logger.Log.Error("创建订单 - 发布MQ消息失败", zap.String("order_no", orderNo), zap.Error(err))
+		logger.Ctx(ctx).Error("创建订单 - 发布MQ消息失败", zap.String("order_no", orderNo), zap.Error(err))
 		return "", err
 	}
 
@@ -129,18 +143,18 @@ func (o *OrderService) CreateOrder(userID uint, goodsID uint, buyNum uint) (stri
 	select {
 	case confirm := <-confirms:
 		if !confirm.Ack {
-			logger.Log.Error("创建订单 - 消息被Broker拒绝(Nack)", zap.String("order_no", orderNo))
+			logger.Ctx(ctx).Error("创建订单 - 消息被Broker拒绝(Nack)", zap.String("order_no", orderNo))
 			return "", errors.New("消息被Broker拒绝(Nack)")
 		}
 
 	case <-time.After(3 * time.Second):
-		logger.Log.Error("创建订单 - 等待Broker确认超时", zap.String("order_no", orderNo))
+		logger.Ctx(ctx).Error("创建订单 - 等待Broker确认超时", zap.String("order_no", orderNo))
 		return "", errors.New("等待Broker确认超时")
 	}
 
 	// ========== 5.确认成功 ==========
 	needCompensate = false
-	logger.Log.Info("创建订单 - 消息已安全抵达Broker",
+	logger.Ctx(ctx).Info("创建订单 - 消息已安全抵达Broker",
 		zap.String("order_no", orderNo))
 
 	return orderNo, nil
@@ -156,16 +170,6 @@ func (o *OrderService) SaveOrder(order *model.Order) error {
 	return err
 }
 
-func (o *OrderService) AddQueue(orderNo string) error {
-	err := o.orderRepo.AddQueue(orderNo)
-	if err != nil {
-		logger.Log.Error("添加订单到超时队列失败",
-			zap.String("order_no", orderNo),
-			zap.Error(err))
-	}
-	return err
-}
-
 func (o *OrderService) CancelOrder(orderNo string) error {
 	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
 	if err != nil {
@@ -174,7 +178,6 @@ func (o *OrderService) CancelOrder(orderNo string) error {
 		return err
 	}
 	if order.Status != 0 {
-		_ = o.orderRepo.DelQueue(orderNo)
 		return nil
 	}
 
@@ -196,23 +199,7 @@ func (o *OrderService) CancelOrder(orderNo string) error {
 		return err
 	}
 
-	err = o.orderRepo.DelQueue(orderNo)
-	if err != nil {
-		logger.Log.Warn("取消订单 - 从队列删除失败（可容忍）",
-			zap.String("order_no", orderNo),
-			zap.Error(err))
-	}
 	return nil
-}
-
-func (o *OrderService) PayOrder(orderNo string) error {
-	err := o.orderRepo.ChangeStatusToPayed(orderNo)
-	if err != nil {
-		logger.Log.Error("支付订单 - 更新状态失败",
-			zap.String("order_no", orderNo),
-			zap.Error(err))
-	}
-	return err
 }
 
 func (o *OrderService) GetUserOrderList(userID uint) ([]model.Order, error) {
@@ -226,7 +213,21 @@ func (o *OrderService) GetUserOrderList(userID uint) ([]model.Order, error) {
 }
 
 func (o *OrderService) generateOrderNo(goodsID, userID uint) string {
-	return time.Now().Format("20060102150405") +
-		strconv.Itoa(int(userID)) +
-		strconv.Itoa(int(goodsID))
+	now := time.Now()
+	timeStr := now.Format("20060102150405")
+	ms := now.UnixMilli() % 1000
+	seq := atomic.AddUint32(&orderSeq, 1) % 10000
+
+	return fmt.Sprintf("%s%03d%d%d%04d", timeStr, ms, userID, goodsID, seq)
+}
+
+func (o *OrderService) IsDuplicateKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) {
+		return mysqlErr.Number == 1062
+	}
+	return strings.Contains(err.Error(), "Duplicate entry")
 }

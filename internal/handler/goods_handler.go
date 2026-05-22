@@ -35,33 +35,25 @@ func (g *GoodsHandler) GetGoodsList(c *gin.Context) {
 func (g *GoodsHandler) GetGoodsDetail(c *gin.Context) {
 	goodsID := c.Query("id")
 
-	id, err := parseUint(goodsID)
+	id, err := strconv.ParseUint(goodsID, 10, 64)
 	if err != nil {
 		logger.Log.Warn("商品ID格式错误", zap.String("input", goodsID))
 		response.Error(c, 400, 1, "商品ID格式错误")
 		return
 	}
 
-	price, goodsNum, goodsName, err := g.goodsService.GetGoodsInfoByID(id)
+	price, goodsNum, goodsName, err := g.goodsService.GetGoodsInfoByID(uint(id))
 	if err != nil {
-		logger.Log.Error("查询商品信息失败", zap.Uint("goods_id", id), zap.Error(err))
+		logger.Log.Error("查询商品信息失败", zap.Uint("goods_id", uint(id)), zap.Error(err))
 		response.Error(c, 404, 1, "商品不存在")
 		return
 	}
 
 	dto := types.Goods{
-		ID:        id,
+		ID:        uint(id),
 		GoodsName: goodsName,
 		GoodsNum:  goodsNum,
 		Price:     price,
 	}
 	response.Success(c, dto)
-}
-
-func parseUint(s string) (uint, error) {
-	num, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	return uint(num), nil
 }

@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"order-payment-system/internal/model"
 	"time"
 
@@ -29,29 +28,6 @@ func NewOrderRepo(db *gorm.DB, rdb *redis.Client) *OrderRepo {
 func (o *OrderRepo) SaveOrder(order *model.Order) error {
 	err := o.db.Create(order).Error
 	return err
-}
-
-// 超时队列
-func (o *OrderRepo) AddQueue(orderNo string) error {
-
-	timeout := 30 * time.Minute
-	expireAt := time.Now().Add(timeout).Unix()
-
-	ctx := context.Background()
-	if err := o.rdb.ZAdd(ctx, "order:timeout:queue", redis.Z{
-		Score:  float64(expireAt),
-		Member: orderNo,
-	}).Err(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// 从超时队列删除
-func (o *OrderRepo) DelQueue(orderNo string) error {
-	ctx := context.Background()
-	o.rdb.ZRem(ctx, "order:timeout:queue", orderNo)
-	return nil
 }
 
 // 取消订单(改变订单状态)

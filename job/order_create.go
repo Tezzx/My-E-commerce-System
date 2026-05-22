@@ -77,6 +77,14 @@ func (c *OrderCreateConsumer) consumeMessages(ctx context.Context) error {
 				return err
 			}
 
+			// 提取 TraceID 并放入 context
+			msgCtx := context.Background()
+			if d.Headers != nil {
+				if spanID, ok := d.Headers["x-trace-id"].(string); ok && spanID != "" {
+					msgCtx = context.WithValue(msgCtx, "trace_id", spanID)
+				}
+			}
+
 			var order model.Order
 			if err := json.Unmarshal(d.Body, &order); err != nil {
 				d.Nack(false, false)
@@ -84,11 +92,26 @@ func (c *OrderCreateConsumer) consumeMessages(ctx context.Context) error {
 			}
 
 			if err := c.orderService.SaveOrder(&order); err != nil {
-				c.handleFail(ch, d)
+				if c.orderService.IsDuplicateKeyError(err) {
+					d.Ack(false)
+				} else {
+					c.handleFail(ch, d)
+				}
 				continue
 			}
 
-			if err := c.orderService.AddQueue(order.OrderNo); err != nil {
+			// 将订单发送至延迟队列，等待超时处理
+			if err := ch.Publish(
+				"",
+				"order_delay_queue",
+				false,
+				false,
+				amqp.Publishing{
+					ContentType:  "text/plain",
+					Body:         []byte(order.OrderNo),
+					DeliveryMode: amqp.Persistent,
+				},
+			); err != nil {
 				c.handleFail(ch, d)
 				continue
 			}

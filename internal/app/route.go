@@ -10,9 +10,10 @@ func SetupRoutes(app *App) *gin.Engine {
 
 	r := gin.Default()
 
+	r.Use(middleware.TraceMiddleware())
 	r.Use(middleware.CorsMiddleware())
 	r.Use(middleware.RequestLogger())
-	// 增加令牌桶限流，例如: 桶容量100，每秒产生10个令牌
+	// 增加令牌桶限流
 	r.Use(middleware.RateLimit(100, 10, app.Rdb))
 	//暂时忽略前端界面
 	r.GET("/", func(c *gin.Context) {

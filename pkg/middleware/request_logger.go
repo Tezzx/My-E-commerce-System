@@ -18,6 +18,7 @@ func RequestLogger() gin.HandlerFunc {
 		cost := time.Since(start)
 
 		logger.Log.Info("http request",
+			zap.String("trace_id", GetTraceID(c.Request.Context())),
 			zap.Int("status", c.Writer.Status()),
 			zap.String("method", c.Request.Method),
 			zap.String("path", c.FullPath()),
