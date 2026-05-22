@@ -23,7 +23,7 @@ func InitializeApp() (*App, string) {
 	}
 	port := strconv.Itoa(cfg.Server.Port)
 	jwt.InitJwtKey(string(cfg.Jwt.Key))
-	service.InitialPay(cfg.AliPay.AppID, cfg.AliPay.PrivateKey)
+	service.InitialPay(cfg.AliPay.AppID, cfg.AliPay.PrivateKey, cfg.AliPay.NotifyUrl)
 	handler.AlipayKey = cfg.AliPay.AliPayKey
 	// 连接数据库
 	db, err := database.InitMySQL(&cfg.Database)
@@ -50,7 +50,7 @@ func InitializeApp() (*App, string) {
 	//设置队列
 	ch, _ := mq.Channel()
 	defer ch.Close()
-	database.DeclareQueue(ch, "order_create_queue")
+	database.DeclareQueueWithDLX(ch, "order_create_queue")
 
 	// 依赖注入
 	//internal部分
@@ -77,13 +77,17 @@ func InitializeApp() (*App, string) {
 	logger.Log.Info("初始化成功")
 
 	return &App{
-		UserHandler:    userHandler,
-		GoodsHandler:   goodsHandler,
-		OrderHandler:   orderHandler,
-		PaymentHandler: paymentHandler,
+		userHandler:    userHandler,
+		goodsHandler:   goodsHandler,
+		orderHandler:   orderHandler,
+		paymentHandler: paymentHandler,
 
 		orderTimeout: orderTimeout,
 		orderCreate:  orderCreate,
 		cachePreheat: cachePreheat,
+
+		Db:  db,
+		Rdb: rdb,
+		Mq:  mq,
 	}, port
 }

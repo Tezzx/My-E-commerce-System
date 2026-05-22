@@ -47,6 +47,7 @@ type AliPay struct {
 	AppID      string
 	PrivateKey string
 	AliPayKey  string
+	NotifyUrl  string
 }
 
 func LoadConfig() (*Config, error) {

@@ -12,6 +12,8 @@ func SetupRoutes(app *App) *gin.Engine {
 
 	r.Use(middleware.CorsMiddleware())
 	r.Use(middleware.RequestLogger())
+	// 增加令牌桶限流，例如: 桶容量100，每秒产生10个令牌
+	r.Use(middleware.RateLimit(100, 10, app.Rdb))
 	//暂时忽略前端界面
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -27,28 +29,28 @@ func SetupRoutes(app *App) *gin.Engine {
 		})
 	})
 
-	r.POST("/login", app.UserHandler.LoginUser)
-	r.POST("/register", app.UserHandler.RegisterUser)
-	r.POST("/api/notify/alipay", app.PaymentHandler.AlipayNotify)
+	r.POST("/login", app.userHandler.LoginUser)
+	r.POST("/register", app.userHandler.RegisterUser)
+	r.POST("/api/notify/alipay", app.paymentHandler.AlipayNotify)
 
 	home := r.Group("/home")
 	home.Use(middleware.TokenIdentify())
 	{
-		home.GET("/", app.GoodsHandler.GetGoodsList)
-		home.GET("/search/goods", app.GoodsHandler.GetGoodsDetail)
-		home.GET("/search/orders", app.OrderHandler.GetUserOrders)
+		home.GET("/", app.goodsHandler.GetGoodsList)
+		home.GET("/search/goods", app.goodsHandler.GetGoodsDetail)
+		home.GET("/search/orders", app.orderHandler.GetUserOrders)
 		order := home.Group("/order")
 		{
-			order.POST("/", app.OrderHandler.CreateOrder)
-			order.GET("/cancel", app.OrderHandler.CancelOrder)
+			order.POST("/", app.orderHandler.CreateOrder)
+			order.GET("/cancel", app.orderHandler.CancelOrder)
 		}
 		pay := home.Group("/pay")
 		{
-			pay.POST("/create", app.PaymentHandler.CreatePay)
+			pay.POST("/create", app.paymentHandler.CreatePay)
 		}
 	}
 	//辅助功能
-	r.GET("help/users", app.UserHandler.GetAllUsers)
+	r.GET("help/users", app.userHandler.GetAllUsers)
 
 	return r
 }

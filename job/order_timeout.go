@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"order-payment-system/internal/service"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -23,13 +24,19 @@ func NewOrderTimeoutJob(orderService *service.OrderService, rdb *redis.Client) *
 }
 
 // Start 开始死循环监听超时订单
-func (j *OrderTimeoutJob) Start() {
+func (j *OrderTimeoutJob) Start(ctx context.Context, wg *sync.WaitGroup) {
 	fmt.Println("启动超时订单监听任务...")
-
-	ctx := context.Background()
+	wg.Add(1)
 
 	go func() {
+		defer wg.Done()
 		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			now := time.Now().Unix()
 
 			orderNos, err := j.rdb.ZRangeByScore(ctx, "order:timeout:queue", &redis.ZRangeBy{

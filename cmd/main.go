@@ -9,6 +9,7 @@ import (
 	"order-payment-system/pkg/logger"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,7 +24,11 @@ func main() {
 
 	appl, port := app.InitializeApp()
 	r := app.SetupRoutes(appl)
-	app.Start(appl)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+
+	app.Start(ctx, &wg, appl)
 	logger.Log.Info("http server starting", zap.String("port", port))
 
 	srv := &http.Server{
@@ -41,10 +46,30 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	fmt.Println("Shutdown Server ...")
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+
+	// 通知 Job 和后台协程停止
+	cancel()
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 25*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Fatal("Server Shutdown Err:", err)
 	}
 
+	// 等待后台 Job 处理完毕
+	wg.Wait()
+
+	// 清理连接池等资源
+	if appl.Db != nil {
+		if sqlDB, err := appl.Db.DB(); err == nil && sqlDB != nil {
+			sqlDB.Close()
+		}
+	}
+	if appl.Rdb != nil {
+		appl.Rdb.Close()
+	}
+	if appl.Mq != nil {
+		appl.Mq.Close()
+	}
+	fmt.Println("Server exiting")
 }

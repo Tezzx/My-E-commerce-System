@@ -3,15 +3,23 @@ package app
 import (
 	"order-payment-system/internal/handler"
 	"order-payment-system/job"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/streadway/amqp"
+	"gorm.io/gorm"
 )
 
 type App struct {
-	UserHandler    *handler.UserHandler
-	GoodsHandler   *handler.GoodsHandler
-	OrderHandler   *handler.OrderHandler
-	PaymentHandler *handler.PaymentHandler
+	userHandler    *handler.UserHandler
+	goodsHandler   *handler.GoodsHandler
+	orderHandler   *handler.OrderHandler
+	paymentHandler *handler.PaymentHandler
 
 	orderTimeout *job.OrderTimeoutJob
 	orderCreate  *job.OrderCreateConsumer
 	cachePreheat *job.GoodsCacheWarmJob
+
+	Db  *gorm.DB
+	Rdb *redis.Client
+	Mq  *amqp.Connection
 }

@@ -36,11 +36,13 @@ func NewPaymentService(orderRepo *repository.OrderRepo, userRepo *repository.Use
 }
 
 var aliClient *alipay.Client
+var notifyUrl string
 
-func InitialPay(appId, privateKey string) {
+func InitialPay(appId, privateKey, url string) {
 	isProd := false
 	appID := appId
 	privatekey := privateKey
+	notifyUrl = url
 	var err error
 	aliClient, err = alipay.NewClient(appID, privatekey, isProd)
 	if err != nil {
@@ -65,7 +67,7 @@ func (p *PaymentService) GenerateAlipayUrl(order *model.Order) (string, error) {
 	bm.Set("product_code", "FAST_INSTANT_TRADE_PAY")
 	amount := float64(order.TotalPrice)
 	bm.Set("total_amount", fmt.Sprintf("%.2f", amount))
-	bm.Set("notify_url", "https://公网域名/api/notify/alipay")
+	bm.Set("notify_url", notifyUrl)
 	bm.Set("return_url", "http://localhost:8080/pay/success")
 
 	payUrl, err := aliClient.TradePagePay(context.Background(), bm)

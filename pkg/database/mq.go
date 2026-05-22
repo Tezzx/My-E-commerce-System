@@ -29,6 +29,42 @@ func InitRabbitMQ(cfg *config.RabbitMQConfig) (*amqp.Connection, error) {
 
 }
 
+// 声明一个带死信队列的队列
+func DeclareQueueWithDLX(ch *amqp.Channel, queueName string) error {
+	// 1. 声明死信交换机
+	dlxExchange := "dlx_" + queueName
+	if err := ch.ExchangeDeclare(dlxExchange, "direct", true, false, false, false, nil); err != nil {
+		return err
+	}
+
+	// 2. 声明死信队列
+	dlqName := queueName + "_dlq"
+	if _, err := ch.QueueDeclare(dlqName, true, false, false, false, nil); err != nil {
+		return err
+	}
+
+	// 3. 绑定死信队列
+	if err := ch.QueueBind(dlqName, queueName+"_routing_key", dlxExchange, false, nil); err != nil {
+		return err
+	}
+
+	// 4. 声明主队列（带死信参数）
+	args := amqp.Table{
+		"x-dead-letter-exchange":    dlxExchange,
+		"x-dead-letter-routing-key": queueName + "_routing_key",
+	}
+
+	_, err := ch.QueueDeclare(
+		queueName,
+		true,
+		false,
+		false,
+		false,
+		args,
+	)
+	return err
+}
+
 // 声明一个队列（如果不存在则创建）
 func DeclareQueue(ch *amqp.Channel, queueName string) error {
 	_, err := ch.QueueDeclare(
