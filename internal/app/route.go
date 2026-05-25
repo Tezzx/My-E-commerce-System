@@ -14,7 +14,7 @@ func SetupRoutes(app *App) *gin.Engine {
 	r.Use(middleware.CorsMiddleware())
 	r.Use(middleware.RequestLogger())
 	// 增加令牌桶限流
-	r.Use(middleware.RateLimit(100, 10, app.Rdb))
+	//r.Use(middleware.RateLimit(100, 10, app.Rdb))
 	//暂时忽略前端界面
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{

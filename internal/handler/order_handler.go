@@ -25,21 +25,21 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 	var req types.OrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		logger.Log.Warn("创建订单 - 参数绑定失败", zap.Error(err))
-		c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+		response.Error(c, 400, 1, "参数错误")
 		return
 	}
 
 	userIDany, exists := c.Get("userID")
 	if !exists {
 		logger.Log.Warn("创建订单 - 用户未登录")
-		c.JSON(200, gin.H{"code": 401, "msg": "请先登录"})
+		response.Error(c, 401, 1, "请先登录")
 		return
 	}
 
 	userID, ok := userIDany.(uint)
 	if !ok {
 		logger.Log.Warn("创建订单 - 用户ID类型转换失败")
-		c.JSON(200, gin.H{"code": 401, "msg": "登录信息无效"})
+		response.Error(c, 500, 1, "用户ID类型错误")
 		return
 	}
 

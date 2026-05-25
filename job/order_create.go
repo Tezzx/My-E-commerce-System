@@ -53,7 +53,6 @@ func (c *OrderCreateConsumer) consumeMessages(ctx context.Context) error {
 	if err := ch.Qos(1, 0, false); err != nil {
 		return err
 	}
-
 	msgs, err := ch.Consume(
 		"order_create_queue",
 		"",

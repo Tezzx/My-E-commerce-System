@@ -20,21 +20,84 @@ import (
 var orderSeq uint32
 
 type OrderService struct {
-	orderRepo *repository.OrderRepo
-	goodsRepo *repository.GoodsRepo
-	mq        *amqp.Connection
+	orderRepo   *repository.OrderRepo
+	goodsRepo   *repository.GoodsRepo
+	mq          *amqp.Connection
+	mqChannel   *amqp.Channel
+	confirmChan chan amqp.Confirmation
+	publishChan chan *publishTask
+	publishSeq  uint64
+}
+
+type publishTask struct {
+	exchange   string
+	routingKey string
+	publishing amqp.Publishing
+	resultChan chan error
 }
 
 func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.GoodsRepo, mq *amqp.Connection) *OrderService {
-	return &OrderService{
-		orderRepo: orderRepo,
-		goodsRepo: goodsRepo,
-		mq:        mq,
+	ch, err := mq.Channel()
+	if err != nil {
+		panic(fmt.Errorf("failed to create channel: %w", err))
+	}
+	if err := ch.Confirm(false); err != nil {
+		panic(fmt.Errorf("failed to enable confirm mode: %w", err))
+	}
+	confirmChan := ch.NotifyPublish(make(chan amqp.Confirmation, 100))
+
+	s := &OrderService{
+		orderRepo:   orderRepo,
+		goodsRepo:   goodsRepo,
+		mq:          mq,
+		mqChannel:   ch,
+		confirmChan: confirmChan,
+		publishChan: make(chan *publishTask, 1024),
+		publishSeq:  0,
+	}
+
+	go s.asyncPublisher()
+	return s
+}
+
+func (s *OrderService) asyncPublisher() {
+	pending := make(map[uint64]*publishTask)
+
+	for {
+		select {
+		case task := <-s.publishChan:
+			tag := atomic.AddUint64(&s.publishSeq, 1)
+
+			err := s.mqChannel.Publish(
+				task.exchange,
+				task.routingKey,
+				false,
+				false,
+				task.publishing,
+			)
+			if err != nil {
+				task.resultChan <- err
+				continue
+			}
+
+			// 记录待确认任务
+			pending[tag] = task
+
+		case confirm := <-s.confirmChan:
+			if task, ok := pending[confirm.DeliveryTag]; ok {
+				delete(pending, confirm.DeliveryTag)
+				if confirm.Ack {
+					task.resultChan <- nil
+				} else {
+					task.resultChan <- errors.New("消息被Broker拒绝(Nack)")
+				}
+			}
+		}
 	}
 }
 
 func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uint, buyNum uint) (string, error) {
-	// ========== 1. 查询商品 & 扣减库存==========
+	// ========== 1. 查询商品 & 扣减库存 ==========
 	price, _, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
 	if err != nil {
 		logger.Ctx(ctx).Warn("创建订单 - 商品不存在", zap.Uint("goods_id", goodsID))
@@ -56,7 +119,7 @@ func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uin
 		return "", errors.New("库存不足")
 	}
 
-	// ========== 2.设置库存补偿保护 ==========
+	// ========== 2. 设置库存补偿保护 ==========
 	needCompensate := true
 	defer func() {
 		if needCompensate {
@@ -75,7 +138,7 @@ func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uin
 		}
 	}()
 
-	// ========== 3. 构建订单消息==========
+	// ========== 3. 构建订单消息 ==========
 	orderNo := o.generateOrderNo(goodsID, userID)
 	totalPrice := price * buyNum
 	msg := &model.Order{
@@ -97,66 +160,41 @@ func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uin
 		return "", err
 	}
 
-	// ========== 4.获取通道 + 启用 Confirm + 阻塞等待 Ack ==========
-	ch, err := o.mq.Channel()
-	if err != nil {
-		logger.Log.Error("创建订单 - 获取MQ通道失败", zap.String("order_no", orderNo), zap.Error(err))
-		return "", err
-	}
-	defer ch.Close()
-
-	// 启用 Publisher Confirm 模式
-	if err := ch.Confirm(false); err != nil {
-		logger.Ctx(ctx).Error("创建订单 - 启用Confirm模式失败", zap.String("order_no", orderNo), zap.Error(err))
-		return "", err
-	}
-
-	// 传递 traceID
+	// ========== 4. 提交到 asyncPublisher 并等待结果 ==========
 	traceID := ""
 	if val := ctx.Value("trace_id"); val != nil {
 		traceID = val.(string)
 	}
 	headers := amqp.Table{"x-trace-id": traceID}
 
-	//注册确认监听
-	confirms := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
-
-	// 发布持久化消息
-	if err := ch.Publish(
-		"",
-		"order_create_queue",
-		false,
-		false,
-		amqp.Publishing{
+	resultChan := make(chan error, 1)
+	o.publishChan <- &publishTask{
+		exchange:   "",
+		routingKey: "order_create_queue",
+		publishing: amqp.Publishing{
 			Headers:      headers,
 			ContentType:  "application/json",
 			Body:         body,
 			Timestamp:    time.Now(),
 			DeliveryMode: amqp.Persistent,
 		},
-	); err != nil {
-		logger.Ctx(ctx).Error("创建订单 - 发布MQ消息失败", zap.String("order_no", orderNo), zap.Error(err))
-		return "", err
+		resultChan: resultChan,
 	}
 
-	// 阻塞等待 Broker Ack
 	select {
-	case confirm := <-confirms:
-		if !confirm.Ack {
-			logger.Ctx(ctx).Error("创建订单 - 消息被Broker拒绝(Nack)", zap.String("order_no", orderNo))
-			return "", errors.New("消息被Broker拒绝(Nack)")
+	case err := <-resultChan:
+		if err != nil {
+			logger.Ctx(ctx).Error("创建订单 - 消息发布失败", zap.String("order_no", orderNo), zap.Error(err))
+			return "", err
 		}
-
 	case <-time.After(3 * time.Second):
-		logger.Ctx(ctx).Error("创建订单 - 等待Broker确认超时", zap.String("order_no", orderNo))
-		return "", errors.New("等待Broker确认超时")
+		logger.Ctx(ctx).Error("创建订单 - 等待MQ确认超时", zap.String("order_no", orderNo))
+		return "", errors.New("等待MQ确认超时")
 	}
 
-	// ========== 5.确认成功 ==========
+	// ========== 5. 确认成功 ==========
 	needCompensate = false
-	logger.Ctx(ctx).Info("创建订单 - 消息已安全抵达Broker",
-		zap.String("order_no", orderNo))
-
+	logger.Ctx(ctx).Info("创建订单 - 消息已安全抵达Broker", zap.String("order_no", orderNo))
 	return orderNo, nil
 }
 

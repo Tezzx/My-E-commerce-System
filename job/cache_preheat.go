@@ -7,6 +7,7 @@ import (
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/service"
 	"strconv"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ import (
 type GoodsCacheWarmJob struct {
 	goodsService *service.GoodsService
 	rdb          *redis.Client
-	db           *gorm.DB // 字段，不是方法
+	db           *gorm.DB
 }
 
 func NewGoodsCacheWarmJob(goodsService *service.GoodsService, rdb *redis.Client, db *gorm.DB) *GoodsCacheWarmJob {
@@ -45,7 +46,7 @@ func (j *GoodsCacheWarmJob) Warm() error {
 		if err != nil {
 			return err
 		}
-		pipe.Set(ctx, "goods:info:"+goodsIDStr, data, 0)
+		pipe.Set(ctx, "goods:info:"+goodsIDStr, data, 1*time.Hour)
 
 		pipe.HSet(ctx, "goods", goodsIDStr, g.Goodsnum)
 	}

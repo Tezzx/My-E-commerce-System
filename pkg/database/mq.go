@@ -84,7 +84,7 @@ func DeclareDelayTimeoutQueue(ch *amqp.Channel) error {
 	delayArgs := amqp.Table{
 		"x-dead-letter-exchange":    timeoutExchange,
 		"x-dead-letter-routing-key": "timeout",
-		"x-message-ttl":             int32(1800000), // 30分钟
+		"x-message-ttl":             int32(600000),
 	}
 	_, err := ch.QueueDeclare("order_delay_queue", true, false, false, false, delayArgs)
 	return err
@@ -100,5 +100,6 @@ func DeclareQueue(ch *amqp.Channel, queueName string) error {
 		false,     // noWait
 		nil,       // arguments
 	)
+	fmt.Printf("========================")
 	return err
 }

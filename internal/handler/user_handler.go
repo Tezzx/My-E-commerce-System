@@ -64,7 +64,6 @@ func (u *UserHandler) LoginUser(c *gin.Context) {
 
 	userID, err := u.userService.LoginUser(req.Username, req.Password)
 	if err != nil {
-		// 注意：不要暴露具体是用户名错还是密码错（防探测）
 		logger.Log.Warn("登录失败",
 			zap.String("username", req.Username))
 		response.Error(c, 400, 1, "账户或密码错误")

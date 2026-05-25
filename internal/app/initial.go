@@ -48,9 +48,11 @@ func InitializeApp() (*App, string) {
 	//设置队列
 	ch, _ := mq.Channel()
 	defer ch.Close()
-	database.DeclareQueueWithDLX(ch, "order_create_queue")
+	err = database.DeclareQueueWithDLX(ch, "order_create_queue")
+	if err != nil {
+		log.Fatalf("Failed to declare DLX queue: %v", err)
+	}
 	database.DeclareDelayTimeoutQueue(ch)
-
 	// 依赖注入
 	//internal部分
 	userRepo := repository.NewUserRepo(db, rdb)

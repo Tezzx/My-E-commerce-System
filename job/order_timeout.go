@@ -2,12 +2,14 @@ package job
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"order-payment-system/internal/service"
 	"sync"
 	"time"
 
 	"github.com/streadway/amqp"
+	"gorm.io/gorm"
 )
 
 // OrderTimeoutJob 超时订单任务
@@ -81,7 +83,12 @@ func (j *OrderTimeoutJob) consumeTimeoutMessages(ctx context.Context) error {
 
 			orderNo := string(d.Body)
 			err := j.orderService.CancelOrder(orderNo)
-			if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// 订单不存在 → 视为已处理
+				fmt.Println("订单已不存在，跳过取消")
+				d.Ack(false)
+				continue
+			} else if err != nil {
 				fmt.Println("取消订单失败，可能稍后重试：", orderNo)
 				d.Nack(false, true)
 				continue
