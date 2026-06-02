@@ -46,7 +46,7 @@ func (o *OrderRepo) CancelOrderStatus(orderNo string) error {
 // 根据订单编号查询订单
 func (o *OrderRepo) GetOrderByOrderNo(orderNo string) (*model.Order, error) {
 	var order model.Order
-	err := o.db.Where("order_no = ?", orderNo).First(&order).Error
+	err := o.db.Preload("OrderItems").Where("order_no = ?", orderNo).First(&order).Error
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (o *OrderRepo) GetOrderByOrderNo(orderNo string) (*model.Order, error) {
 // 查询用户的所有订单
 func (o *OrderRepo) GetUserOrderList(userID uint) ([]model.Order, error) {
 	var orders []model.Order
-	err := o.db.Where("user_id = ?", userID).Order("created_at desc").Find(&orders).Error
+	err := o.db.Preload("OrderItems").Where("user_id = ?", userID).Order("created_at desc").Find(&orders).Error
 	return orders, err
 }
 

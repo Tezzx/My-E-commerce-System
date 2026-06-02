@@ -102,9 +102,19 @@ func (p *PaymentService) HandlePaySuccess(orderNo, tradeNo string) error {
 		}
 
 		// 扣减 MySQL 库存
-		err = goodsRepoTx.DeductStockSQL(order.GoodsID, int64(order.BuyNum))
-		if err != nil {
-			return err
+		if len(order.OrderItems) > 0 {
+			for _, item := range order.OrderItems {
+				err = goodsRepoTx.DeductStockSQL(item.GoodsID, int64(item.Quantity))
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			// 兼容旧的单商品下单流程
+			err = goodsRepoTx.DeductStockSQL(order.GoodsID, int64(order.BuyNum))
+			if err != nil {
+				return err
+			}
 		}
 
 		logger.Log.Info("第三方支付成功并处理完成", zap.String("order_no", orderNo))

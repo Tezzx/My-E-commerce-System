@@ -10,10 +10,14 @@ import (
 )
 
 type App struct {
-	userHandler    *handler.UserHandler
-	goodsHandler   *handler.GoodsHandler
-	orderHandler   *handler.OrderHandler
-	paymentHandler *handler.PaymentHandler
+	userHandler     *handler.UserHandler
+	goodsHandler    *handler.GoodsHandler
+	orderHandler    *handler.OrderHandler
+	paymentHandler  *handler.PaymentHandler
+	cartHandler     *handler.CartHandler
+	addressHandler  *handler.AddressHandler
+	categoryHandler *handler.CategoryHandler
+	reviewHandler   *handler.ReviewHandler
 
 	orderTimeout *job.OrderTimeoutJob
 	orderCreate  *job.OrderCreateConsumer

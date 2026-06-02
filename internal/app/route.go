@@ -43,11 +43,38 @@ func SetupRoutes(app *App) *gin.Engine {
 		order := home.Group("/order")
 		{
 			order.POST("/", app.orderHandler.CreateOrder)
+			order.POST("/cart_checkout", app.orderHandler.CheckoutCart)
 			order.GET("/cancel", app.orderHandler.CancelOrder)
 		}
 		pay := home.Group("/pay")
 		{
 			pay.POST("/create", app.paymentHandler.CreatePay)
+		}
+		cart := home.Group("/cart")
+		{
+			cart.POST("/add", app.cartHandler.AddToCart)
+			cart.PUT("/update", app.cartHandler.UpdateCart)
+			cart.DELETE("/delete", app.cartHandler.DeleteCart)
+			cart.GET("/list", app.cartHandler.GetCartList)
+		}
+		addr := home.Group("/address")
+		{
+			addr.POST("/", app.addressHandler.Create)
+			addr.PUT("/:id", app.addressHandler.Update)
+			addr.DELETE("/:id", app.addressHandler.Delete)
+			addr.GET("/list", app.addressHandler.List)
+		}
+		category := home.Group("/category")
+		{
+			category.POST("/", app.categoryHandler.Create)
+			category.PUT("/:id", app.categoryHandler.Update)
+			category.DELETE("/:id", app.categoryHandler.Delete)
+			category.GET("/tree", app.categoryHandler.GetTree)
+		}
+		review := home.Group("/review")
+		{
+			review.POST("/", app.reviewHandler.Create)
+			review.GET("/list", app.reviewHandler.List)
 		}
 	}
 	//辅助功能

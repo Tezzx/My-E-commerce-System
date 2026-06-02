@@ -41,7 +41,10 @@ func InitializeApp() (*App, string) {
 	fmt.Println("消息队列连接成功")
 
 	// 自动建表
-	if err := db.AutoMigrate(&model.User{}, &model.Goods{}, &model.Order{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{}, &model.Goods{}, &model.Order{}, &model.OrderItem{},
+		&model.CartItem{}, &model.Address{}, &model.Category{}, &model.Review{},
+	); err != nil {
 		log.Fatalf("数据表创建失败: %v", err)
 	}
 
@@ -63,12 +66,28 @@ func InitializeApp() (*App, string) {
 	goodsService := service.NewGoodsService(goodsRepo)
 	goodsHandler := handler.NewGoodsHandler(goodsService)
 
+	cartRepo := repository.NewCartRepo(db)
+	cartService := service.NewCartService(cartRepo, goodsRepo)
+	cartHandler := handler.NewCartHandler(cartService)
+
 	orderRepo := repository.NewOrderRepo(db, rdb)
 	orderService := service.NewOrderService(orderRepo, goodsRepo, mq)
-	orderHandler := handler.NewOrderHandler(orderService)
+	orderHandler := handler.NewOrderHandler(orderService, cartService)
 
 	paymentService := service.NewPaymentService(repository.NewTransactionManager(db, rdb), orderRepo, userRepo, goodsRepo, db, rdb, &cfg.AliPay)
 	paymentHandler := handler.NewPaymentHandler(paymentService, cfg.AliPay.AliPayKey)
+
+	addressRepo := repository.NewAddressRepo(db)
+	addressService := service.NewAddressService(addressRepo)
+	addressHandler := handler.NewAddressHandler(addressService)
+
+	categoryRepo := repository.NewCategoryRepo(db)
+	categoryService := service.NewCategoryService(categoryRepo)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+
+	reviewRepo := repository.NewReviewRepo(db)
+	reviewService := service.NewReviewService(reviewRepo, orderRepo)
+	reviewHandler := handler.NewReviewHandler(reviewService)
 
 	//job部分
 	orderTimeout := job.NewOrderTimeoutJob(orderService, mq)
@@ -78,10 +97,14 @@ func InitializeApp() (*App, string) {
 	logger.Log.Info("初始化成功")
 
 	return &App{
-		userHandler:    userHandler,
-		goodsHandler:   goodsHandler,
-		orderHandler:   orderHandler,
-		paymentHandler: paymentHandler,
+		userHandler:     userHandler,
+		goodsHandler:    goodsHandler,
+		orderHandler:    orderHandler,
+		paymentHandler:  paymentHandler,
+		cartHandler:     cartHandler,
+		addressHandler:  addressHandler,
+		categoryHandler: categoryHandler,
+		reviewHandler:   reviewHandler,
 
 		orderTimeout: orderTimeout,
 		orderCreate:  orderCreate,

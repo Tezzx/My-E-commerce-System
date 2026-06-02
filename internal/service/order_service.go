@@ -219,14 +219,28 @@ func (o *OrderService) CancelOrder(orderNo string) error {
 		return nil
 	}
 
-	err = o.goodsRepo.IncrementStock(order.GoodsID, int64(order.BuyNum))
-	if err != nil {
-		logger.Log.Error("取消订单 - 回滚库存失败",
-			zap.String("order_no", orderNo),
-			zap.Uint("goods_id", order.GoodsID),
-			zap.Uint("buy_num", order.BuyNum),
-			zap.Error(err))
-		return err
+	if len(order.OrderItems) > 0 {
+		for _, item := range order.OrderItems {
+			err = o.goodsRepo.IncrementStock(item.GoodsID, int64(item.Quantity))
+			if err != nil {
+				logger.Log.Error("取消订单 - 回滚库存失败",
+					zap.String("order_no", orderNo),
+					zap.Uint("goods_id", item.GoodsID),
+					zap.Uint("buy_num", item.Quantity),
+					zap.Error(err))
+				return err
+			}
+		}
+	} else {
+		err = o.goodsRepo.IncrementStock(order.GoodsID, int64(order.BuyNum))
+		if err != nil {
+			logger.Log.Error("取消订单 - 回滚库存失败",
+				zap.String("order_no", orderNo),
+				zap.Uint("goods_id", order.GoodsID),
+				zap.Uint("buy_num", order.BuyNum),
+				zap.Error(err))
+			return err
+		}
 	}
 
 	err = o.orderRepo.CancelOrderStatus(orderNo)

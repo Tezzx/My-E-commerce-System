@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"order-payment-system/internal/model"
 	"order-payment-system/internal/service"
 	"order-payment-system/internal/types"
 	"order-payment-system/pkg/logger" // 导入 logger 包
@@ -12,11 +13,13 @@ import (
 
 type OrderHandler struct {
 	orderService *service.OrderService
+	cartService  *service.CartService // 引入 cart service 获取购物车列表
 }
 
-func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
+func NewOrderHandler(orderService *service.OrderService, cartService *service.CartService) *OrderHandler {
 	return &OrderHandler{
 		orderService: orderService,
+		cartService:  cartService,
 	}
 }
 
@@ -51,6 +54,49 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	logger.Ctx(c.Request.Context()).Info("订单创建成功", zap.String("order_no", orderNo))
+	response.Success(c, orderNo)
+}
+
+// 购物车结算下单
+func (o *OrderHandler) CheckoutCart(c *gin.Context) {
+	userIDany, exists := c.Get("userID")
+	if !exists {
+		response.Error(c, 401, 1, "请先登录")
+		return
+	}
+	userID := userIDany.(uint)
+
+	// 获取用户购物车所有商品
+	cartResp, err := o.cartService.GetCartList(userID)
+	if err != nil {
+		response.Error(c, 500, 1, "获取购物车异常")
+		return
+	}
+
+	// 转换为 model.CartItem 结构以供 Service 层消费（因为之前服务参数里约定了）
+	var cartItems []model.CartItem
+	for _, item := range cartResp.Items {
+		cartItems = append(cartItems, model.CartItem{
+			GoodsID:  item.GoodsID,
+			Quantity: item.Quantity,
+			Selected: item.Selected,
+		})
+	}
+
+	orderNo, err := o.orderService.CreateCartOrder(c.Request.Context(), userID, cartItems)
+	if err != nil {
+		logger.Log.Error("购物车下单失败", zap.Error(err))
+		response.Error(c, 500, 1, err.Error())
+		return
+	}
+
+	// 下单成功后清空已勾选的购物车商品
+	for _, item := range cartItems {
+		if item.Selected {
+			_ = o.cartService.DeleteCart(userID, item.GoodsID)
+		}
+	}
+
 	response.Success(c, orderNo)
 }
 
