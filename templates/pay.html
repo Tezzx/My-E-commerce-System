@@ -2,150 +2,116 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>订单支付</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>支付订单</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            background: #f5f5f5;
-            padding: 20px;
-            font-size: 16px;
-        }
-        .pay-box {
-            max-width: 500px;
-            margin: 50px auto;
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.05);
-        }
-        .title {
-            font-size: 22px;
-            margin-bottom: 20px;
-            text-align: center;
-            color: #333;
-        }
-        .order-info {
-            line-height: 2.2;
-            margin-bottom: 30px;
-            color: #444;
-        }
-        .pay-btn {
-            width: 100%;
-            height: 48px;
-            background: #ff4d4f;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 18px;
-            cursor: pointer;
-        }
-        .pay-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
+        :root { --pri: #667eea; --green: #22c55e; --red: #ef4444; --bg: #f0f2f5; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background:var(--bg); display:flex; justify-content:center; align-items:center; min-height:100vh; padding:24px; }
+        .card { background:#fff; border-radius:12px; padding:32px; box-shadow:0 4px 20px rgba(0,0,0,.08); width:100%; max-width:460px; }
+        .card h2 { text-align:center; margin-bottom:24px; color:#333; }
+        .info { background:#f8fafc; border-radius:8px; padding:16px; margin-bottom:20px; }
+        .info .row { display:flex; justify-content:space-between; padding:6px 0; font-size:14px; }
+        .info .row .lbl { color:#888; }
+        .info .row .val { font-weight:600; }
+        .info .divider { border-top:1px dashed #e5e7eb; margin:8px 0; }
+        .info .total { font-size:18px; color:var(--red); font-weight:700; }
+        .qrcode { text-align:center; padding:20px; border:2px dashed #e5e7eb; border-radius:12px; margin:20px 0; min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+        .qrcode .tip { color:#888; font-size:13px; margin-top:8px; }
+        .qrcode img { max-width:200px; border-radius:8px; }
+        .actions { display:flex; gap:12px; margin-top:16px; }
+        .btn { flex:1; padding:12px; border:none; border-radius:8px; cursor:pointer; font-size:15px; transition:.2s; }
+        .btn-pri { background:var(--pri); color:#fff; }
+        .btn-pri:hover { opacity:.9; }
+        .btn-out { background:#fff; border:1px solid #ddd; color:#555; }
+        .btn-out:hover { background:#f5f5f5; }
+        .msg { text-align:center; margin-top:16px; font-size:14px; }
+        .msg.success { color:var(--green); }
+        .msg.error { color:var(--red); }
     </style>
 </head>
 <body>
-    <div class="pay-box">
-        <div class="title">订单支付</div>
-        <div class="order-info">
-            <p>订单号：<span id="orderNo">-</span></p>
-            <p>商品名称：<span id="goodsName">-</span></p>
-            <p>单价：<span id="price">-</span> 元</p>
-            <p>购买数量：<span id="buyNum">-</span></p>
-            <p>实付金额：<span id="totalPrice" style="color:red;font-weight:bold;">-</span> 元</p>
-            <p>订单状态：<span id="status">-</span></p>
-        </div>
-        <button class="pay-btn" id="payBtn" onclick="toPay()">立即支付</button>
+<div class="card">
+    <h2>💳 收银台</h2>
+    <div class="info" id="orderInfo">
+        <div class="row"><span class="lbl">订单号</span><span class="val" id="orderNo">---</span></div>
+        <div class="row"><span class="lbl">商品</span><span class="val" id="orderItem">---</span></div>
+        <div class="divider"></div>
+        <div class="row"><span class="lbl">应付金额</span><span class="val total" id="orderPrice">¥0</span></div>
     </div>
+    <div class="qrcode" id="qrcode">
+        <div id="qrcodeImg" style="padding:10px;background:#fff;">
+            <p style="color:#888;margin-bottom:8px;">点击「发起支付」生成支付宝收银台二维码</p>
+            <p style="color:#aaa;font-size:12px;">后端通过支付宝SDK生成真实支付链接 → 前端渲染为二维码 → 手机扫码付款</p>
+        </div>
+        <div class="tip" id="qrcodeTip"></div>
+    </div>
+    <div class="actions">
+        <button class="btn btn-pri" onclick="createPayment()">💰 发起支付</button>
+        <button class="btn btn-out" onclick="checkPayStatus()">🔄 查询状态</button>
+    </div>
+    <div class="actions">
+        <button class="btn btn-out" onclick="location.href='/'">← 返回首页</button>
+    </div>
+    <div id="payMsg" class="msg"></div>
+</div>
 
-    <script>
-        // 页面加载完成执行
-        window.onload = function () {
-            // 1. 从地址栏获取 orderNo
-            const params = new URLSearchParams(window.location.search);
-            const orderNo = params.get("orderNo");
+<script>
+const BASE = '';
+const token = localStorage.getItem('token')||'';
+const params = new URLSearchParams(location.search);
+const orderNo = params.get('orderNo')||'';
 
-            // 2. 获取本地 token
-            const token = localStorage.getItem('userToken');
+if(!token){ location.href='/auth'; }
 
-            if (!orderNo) {
-                alert("订单号不存在");
-                return;
+(async function load() {
+    if(!orderNo){ document.getElementById('orderInfo').innerHTML='<p style="color:var(--red);text-align:center;">缺少订单号</p>'; return; }
+    document.getElementById('orderNo').textContent = orderNo;
+    try {
+        const r = await fetch(BASE+'/home/search/orders', {headers:{'Authorization':'Bearer '+token}});
+        const d = await r.json();
+        if(d.code===0&&d.data){
+            const o = d.data.find(x=>x.order_no===orderNo);
+            if(o){
+                const items = o.items||[];
+                document.getElementById('orderItem').textContent = items.map(i=>i.goods_name+' x'+i.quantity).join(', ')||o.goods_name||'---';
+                document.getElementById('orderPrice').textContent = '¥'+(o.total_price||0);
             }
-            if (!token) {
-                alert("请先登录");
-                location.href = "/auth";
-                return;
-            }
-
-            // 3. 请求订单详情接口
-            fetch(`/payment/ensure?orderNo=${orderNo}`, {
-                method: 'POST',
-                headers: {
-                    "Authorization": "Bearer " + token
-                }
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.msg !== "success") {
-                        alert(data.msg || "获取订单失败");
-                        return;
-                    }
-
-                    const order = data.data;
-                    // 赋值到页面
-                    document.getElementById("orderNo").innerText = order.OrderNo;
-                    document.getElementById("goodsName").innerText = order.GoodsName;
-                    // 如果你存的是分，这里要 /100，直接存元就不用
-                    document.getElementById("price").innerText = order.Price;
-                    document.getElementById("buyNum").innerText = order.BuyNum;
-                    document.getElementById("totalPrice").innerText = order.TotalPrice;
-
-                    // 订单状态文字
-                    let statusText = "未支付";
-                    if (order.Status === 1) statusText = "已支付";
-                    if (order.Status === 2) statusText = "已取消";
-                    document.getElementById("status").innerText = statusText;
-
-                    // 如果已支付，禁用按钮
-                    if (order.Status !== 0) {
-                        document.getElementById("payBtn").disabled = true;
-                    }
-                })
-                .catch(err => {
-                    alert("请求异常：" + err.message);
-                });
-        };
-
-        // 支付按钮点击
-        function toPay() {
-            const params = new URLSearchParams(window.location.search);
-            const orderNo = params.get("orderNo");
-            const token = localStorage.getItem('userToken');
-
-            if (!confirm("确认支付该订单？")) return;
-
-            // 请求支付接口
-            fetch("/payment/settle", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + token
-                },
-                body: JSON.stringify({ orderNo: orderNo })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    alert(data.msg);
-                        location.href = "/"; // 支付成功跳订单列表
-                })
-                .catch(err => alert("支付失败：" + err.message));
         }
-    </script>
+    }catch(e){}
+})();
+
+async function createPayment() {
+    if(!orderNo) return msg('缺少订单号','error');
+    msg('生成支付中...','');
+    try {
+        const r = await fetch(BASE+'/home/pay/create?orderNo='+orderNo, {method:'POST',headers:{'Authorization':'Bearer '+token}});
+        const d = await r.json();
+        if(d.code===0&&d.data){
+            document.getElementById('qrcodeImg').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(d.data)}" alt="支付二维码" onerror="this.parentElement.innerHTML='<a href=\\''+d.data+'\\' target=\\'_blank\\'>打开支付链接</a>'">`;
+            document.getElementById('qrcodeTip').textContent = '请使用支付宝扫码支付';
+            msg('支付链接已生成','success');
+        } else msg(d.message,'error');
+    }catch(e){ msg('网络异常','error'); }
+}
+
+async function checkPayStatus() {
+    if(!orderNo) return msg('缺少订单号','error');
+    msg('查询中...','');
+    try {
+        const r = await fetch(BASE+'/home/search/orders', {headers:{'Authorization':'Bearer '+token}});
+        const d = await r.json();
+        if(d.code===0&&d.data){
+            const o = d.data.find(x=>x.order_no===orderNo);
+            if(o&&o.status===1) msg('✅ 支付成功! 即将跳转...','success');
+            else if(o&&o.status===0) msg('⏳ 待支付，请扫码完成付款','');
+            else if(o&&o.status===2) msg('❌ 订单已取消','error');
+            else msg('状态: '+(o?o.status:'未知'),'');
+        }
+    }catch(e){ msg('查询失败','error'); }
+}
+
+function msg(t, cls) { const el = document.getElementById('payMsg'); el.textContent=t; el.className='msg '+(cls||''); }
+</script>
 </body>
 </html>

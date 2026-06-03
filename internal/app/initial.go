@@ -44,6 +44,7 @@ func InitializeApp() (*App, string) {
 	if err := db.AutoMigrate(
 		&model.User{}, &model.Goods{}, &model.Order{}, &model.OrderItem{},
 		&model.CartItem{}, &model.Address{}, &model.Category{}, &model.Review{},
+		&model.OrderLog{},
 	); err != nil {
 		log.Fatalf("数据表创建失败: %v", err)
 	}
@@ -70,23 +71,23 @@ func InitializeApp() (*App, string) {
 	cartService := service.NewCartService(cartRepo, goodsRepo)
 	cartHandler := handler.NewCartHandler(cartService)
 
-	orderRepo := repository.NewOrderRepo(db, rdb)
-	orderService := service.NewOrderService(orderRepo, goodsRepo, mq)
-	orderHandler := handler.NewOrderHandler(orderService, cartService)
-
-	paymentService := service.NewPaymentService(repository.NewTransactionManager(db, rdb), orderRepo, userRepo, goodsRepo, db, rdb, &cfg.AliPay)
-	paymentHandler := handler.NewPaymentHandler(paymentService, cfg.AliPay.AliPayKey)
-
 	addressRepo := repository.NewAddressRepo(db)
 	addressService := service.NewAddressService(addressRepo)
 	addressHandler := handler.NewAddressHandler(addressService)
+
+	orderRepo := repository.NewOrderRepo(db, rdb)
+	orderService := service.NewOrderService(orderRepo, goodsRepo, addressRepo, mq)
+	orderHandler := handler.NewOrderHandler(orderService, cartService, addressService)
+
+	paymentService := service.NewPaymentService(repository.NewTransactionManager(db, rdb), orderRepo, userRepo, goodsRepo, db, rdb, &cfg.AliPay)
+	paymentHandler := handler.NewPaymentHandler(paymentService, cfg.AliPay.AliPayKey)
 
 	categoryRepo := repository.NewCategoryRepo(db)
 	categoryService := service.NewCategoryService(categoryRepo)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	reviewRepo := repository.NewReviewRepo(db)
-	reviewService := service.NewReviewService(reviewRepo, orderRepo)
+	reviewService := service.NewReviewService(reviewRepo, orderRepo, userRepo)
 	reviewHandler := handler.NewReviewHandler(reviewService)
 
 	//job部分
@@ -105,6 +106,8 @@ func InitializeApp() (*App, string) {
 		addressHandler:  addressHandler,
 		categoryHandler: categoryHandler,
 		reviewHandler:   reviewHandler,
+
+		UserRepo: userRepo,
 
 		orderTimeout: orderTimeout,
 		orderCreate:  orderCreate,

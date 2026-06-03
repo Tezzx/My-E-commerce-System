@@ -33,9 +33,8 @@ func (o *OrderRepo) SaveOrder(order *model.Order) error {
 // 取消订单(改变订单状态)
 func (o *OrderRepo) CancelOrderStatus(orderNo string) error {
 	result := o.db.Model(&model.Order{}).
-		Where("order_no = ? AND status = ?", orderNo, 0).
-		Update("status", 2)
-
+		Where("order_no = ? AND status = ?", orderNo, model.OrderStatusPending).
+		Update("status", model.OrderStatusCancelled)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -64,18 +63,60 @@ func (o *OrderRepo) ReturnDB() *gorm.DB {
 	return o.db
 }
 
-func (o *OrderRepo) ChangeStatusToPayed(orderNo string) error {
-	now := time.Now()
+// UpdateStatus 通用状态流转（带乐观锁校验 oldStatus）
+func (o *OrderRepo) UpdateStatus(orderNo string, oldStatus, newStatus int) error {
 	result := o.db.Model(&model.Order{}).
-		Where("order_no = ? AND status = ?", orderNo, 0). // 仅允许待支付订单
-		Updates(map[string]interface{}{
-			"status":   1,
-			"pay_time": now,
-		})
-
+		Where("order_no = ? AND status = ?", orderNo, oldStatus).
+		Update("status", newStatus)
 	if result.Error != nil {
 		return result.Error
 	}
-
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
 	return nil
+}
+
+// UpdateStatusWithShip 已支付 → 已发货，更新物流信息
+func (o *OrderRepo) UpdateStatusWithShip(orderNo string, shipCompany, shipNo string) error {
+	result := o.db.Model(&model.Order{}).
+		Where("order_no = ? AND status = ?", orderNo, model.OrderStatusPaid).
+		Updates(map[string]interface{}{
+			"status":       model.OrderStatusShipped,
+			"ship_company": shipCompany,
+			"ship_no":      shipNo,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (o *OrderRepo) ChangeStatusToPayed(orderNo string) error {
+	now := time.Now()
+	result := o.db.Model(&model.Order{}).
+		Where("order_no = ? AND status = ?", orderNo, model.OrderStatusPending).
+		Updates(map[string]interface{}{
+			"status":   model.OrderStatusPaid,
+			"pay_time": now,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+// ---------- OrderLog ----------
+
+func (o *OrderRepo) CreateOrderLog(log *model.OrderLog) error {
+	return o.db.Create(log).Error
+}
+
+func (o *OrderRepo) GetOrderLogs(orderNo string) ([]model.OrderLog, error) {
+	var logs []model.OrderLog
+	err := o.db.Where("order_no = ?", orderNo).Order("created_at asc").Find(&logs).Error
+	return logs, err
 }

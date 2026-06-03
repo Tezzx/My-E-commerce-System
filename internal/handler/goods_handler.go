@@ -22,6 +22,14 @@ func NewGoodsHandler(goodsService *service.GoodsService) *GoodsHandler {
 	}
 }
 
+// @Summary      商品列表
+// @Description  获取所有商品
+// @Tags         商品
+// @Accept       json
+// @Produce      json
+// @Success      200   {object}  response.Resp{data=[]types.Goods}
+// @Security     BearerAuth
+// @Router       /home [get]
 func (g *GoodsHandler) GetGoodsList(c *gin.Context) {
 	goods, err := g.goodsService.GetGoodsList()
 	if err != nil {
@@ -29,9 +37,32 @@ func (g *GoodsHandler) GetGoodsList(c *gin.Context) {
 		response.Error(c, 500, 2, "获取商品列表失败")
 		return
 	}
-	response.Success(c, goods)
+
+	var dto []types.Goods
+	for _, v := range goods {
+		dto = append(dto, types.Goods{
+			ID:         v.ID,
+			GoodsName:  v.Goodsname,
+			GoodsNum:   v.Goodsnum,
+			Price:      v.Price,
+			CategoryID: v.CategoryID,
+			ImageURL:   v.ImageURL,
+			Sales:      v.Sales,
+		})
+	}
+	response.Success(c, dto)
 }
 
+// @Summary      商品详情
+// @Description  根据商品ID查询详情
+// @Tags         商品
+// @Accept       json
+// @Produce      json
+// @Param        id   query     int  true  "商品ID"
+// @Success      200  {object}  response.Resp{data=types.Goods}
+// @Failure      404  {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /home/search/goods [get]
 func (g *GoodsHandler) GetGoodsDetail(c *gin.Context) {
 	goodsID := c.Query("id")
 

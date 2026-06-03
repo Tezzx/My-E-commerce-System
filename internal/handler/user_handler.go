@@ -21,6 +21,15 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 }
 
 // RegisterUser 用户注册
+// @Summary      用户注册
+// @Description  创建新账号
+// @Tags         用户
+// @Accept       json
+// @Produce      json
+// @Param        body  body      types.RegisterRequest  true  "注册信息"
+// @Success      200   {object}  response.Resp{data=string}
+// @Failure      400   {object}  response.Resp
+// @Router       /register [post]
 func (u *UserHandler) RegisterUser(c *gin.Context) {
 	var req types.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -54,6 +63,15 @@ func (u *UserHandler) RegisterUser(c *gin.Context) {
 }
 
 // LoginUser 用户登录
+// @Summary      用户登录
+// @Description  登录获取 Token
+// @Tags         用户
+// @Accept       json
+// @Produce      json
+// @Param        body  body      types.LoginRequest  true  "登录信息"
+// @Success      200   {object}  response.Resp{data=string}
+// @Failure      400   {object}  response.Resp
+// @Router       /login [post]
 func (u *UserHandler) LoginUser(c *gin.Context) {
 	var req types.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -86,6 +104,13 @@ func (u *UserHandler) LoginUser(c *gin.Context) {
 }
 
 // GetAllUsers 获取所有用户
+// @Summary      获取所有用户
+// @Tags         用户
+// @Accept       json
+// @Produce      json
+// @Success      200   {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /help/users [get]
 func (u *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := u.userService.GetAllUsers()
 	if err != nil {

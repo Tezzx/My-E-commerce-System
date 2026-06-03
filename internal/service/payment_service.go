@@ -60,7 +60,7 @@ func (p *PaymentService) GenerateAlipayUrl(order *model.Order) (string, error) {
 	bm.Set("subject", order.GoodsName)
 	bm.Set("out_trade_no", order.OrderNo)
 	bm.Set("product_code", "FAST_INSTANT_TRADE_PAY")
-	amount := float64(order.TotalPrice)
+	amount := float64(order.TotalPrice) / 100.0 // 分转元
 	bm.Set("total_amount", fmt.Sprintf("%.2f", amount))
 	bm.Set("notify_url", p.notifyUrl)
 	bm.Set("return_url", "http://localhost:8080/pay/success")
@@ -80,7 +80,7 @@ func (p *PaymentService) HandlePaySuccess(orderNo, tradeNo string) error {
 		return err
 	}
 
-	if order.Status == 1 {
+	if order.Status == model.OrderStatusPaid {
 		return nil
 	}
 
@@ -88,8 +88,8 @@ func (p *PaymentService) HandlePaySuccess(orderNo, tradeNo string) error {
 
 		goodsRepoTx := txManager.GoodsRepo()
 
-		res := txManager.OrderRepo().ReturnDB().Model(&model.Order{}).Where("order_no = ? AND status = ?", orderNo, 0).Updates(map[string]interface{}{
-			"status":      1,
+		res := txManager.OrderRepo().ReturnDB().Model(&model.Order{}).Where("order_no = ? AND status = ?", orderNo, model.OrderStatusPending).Updates(map[string]interface{}{
+			"status":      model.OrderStatusPaid,
 			"trade_no":    tradeNo,
 			"pay_channel": "alipay",
 		})

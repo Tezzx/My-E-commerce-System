@@ -4,30 +4,35 @@ import (
 	"order-payment-system/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func SetupRoutes(app *App) *gin.Engine {
 
 	r := gin.Default()
 
+	// HTML 页面
+	r.LoadHTMLGlob("templates/*")
+
 	r.Use(middleware.TraceMiddleware())
 	r.Use(middleware.CorsMiddleware())
 	r.Use(middleware.RequestLogger())
 	// 增加令牌桶限流
 	//r.Use(middleware.RateLimit(100, 10, app.Rdb))
-	//暂时忽略前端界面
+
 	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"msg":  "success",
-			"data": "index",
-		})
+		c.HTML(200, "index.html", nil)
 	})
 
 	r.GET("/auth", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"msg":  "success",
-			"data": "login",
-		})
+		c.HTML(200, "login.html", nil)
+	})
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	r.GET("/pay", func(c *gin.Context) {
+		c.HTML(200, "pay.html", nil)
 	})
 
 	r.POST("/login", app.userHandler.LoginUser)
@@ -45,6 +50,10 @@ func SetupRoutes(app *App) *gin.Engine {
 			order.POST("/", app.orderHandler.CreateOrder)
 			order.POST("/cart_checkout", app.orderHandler.CheckoutCart)
 			order.GET("/cancel", app.orderHandler.CancelOrder)
+			order.POST("/ship", middleware.MerchantOnly(app.UserRepo), app.orderHandler.ShipOrder) // 商家发货
+			order.POST("/confirm", app.orderHandler.ConfirmReceipt)                                // 用户确认收货
+			order.POST("/complete", app.orderHandler.CompleteOrder)                                // 订单完成
+			order.GET("/logs", app.orderHandler.GetOrderLogs)                                      // 操作日志
 		}
 		pay := home.Group("/pay")
 		{
@@ -56,6 +65,7 @@ func SetupRoutes(app *App) *gin.Engine {
 			cart.PUT("/update", app.cartHandler.UpdateCart)
 			cart.DELETE("/delete", app.cartHandler.DeleteCart)
 			cart.GET("/list", app.cartHandler.GetCartList)
+			cart.PATCH("/select", app.cartHandler.ToggleSelect)
 		}
 		addr := home.Group("/address")
 		{
@@ -66,9 +76,9 @@ func SetupRoutes(app *App) *gin.Engine {
 		}
 		category := home.Group("/category")
 		{
-			category.POST("/", app.categoryHandler.Create)
-			category.PUT("/:id", app.categoryHandler.Update)
-			category.DELETE("/:id", app.categoryHandler.Delete)
+			category.POST("/", middleware.AdminOnly(app.UserRepo), app.categoryHandler.Create)
+			category.PUT("/:id", middleware.AdminOnly(app.UserRepo), app.categoryHandler.Update)
+			category.DELETE("/:id", middleware.AdminOnly(app.UserRepo), app.categoryHandler.Delete)
 			category.GET("/tree", app.categoryHandler.GetTree)
 		}
 		review := home.Group("/review")
@@ -78,7 +88,7 @@ func SetupRoutes(app *App) *gin.Engine {
 		}
 	}
 	//辅助功能
-	r.GET("help/users", app.userHandler.GetAllUsers)
+	r.GET("help/users", middleware.TokenIdentify(), middleware.AdminOnly(app.UserRepo), app.userHandler.GetAllUsers)
 
 	return r
 }

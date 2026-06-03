@@ -19,6 +19,14 @@ func NewReviewHandler(svc *service.ReviewService) *ReviewHandler {
 	return &ReviewHandler{svc: svc}
 }
 
+// @Summary      创建评价
+// @Tags         评价
+// @Accept       json
+// @Produce      json
+// @Param        body  body      types.ReviewReq  true  "评价内容"
+// @Success      200   {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /home/review [post]
 func (h *ReviewHandler) Create(c *gin.Context) {
 	var req types.ReviewReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -34,6 +42,16 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 	response.Success(c, "评价成功")
 }
 
+// @Summary      评价列表
+// @Tags         评价
+// @Accept       json
+// @Produce      json
+// @Param        goods_id  query     int  true  "商品ID"
+// @Param        page      query     int  false "页码"  default(1)
+// @Param        size      query     int  false "每页数量"  default(10)
+// @Success      200       {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /home/review/list [get]
 func (h *ReviewHandler) List(c *gin.Context) {
 	goodsIDStr := c.Query("goods_id")
 	goodsID, err := strconv.ParseUint(goodsIDStr, 10, 64)

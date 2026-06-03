@@ -1,0 +1,1055 @@
+basePath: /
+definitions:
+  order-payment-system_internal_types.AddCartReq:
+    properties:
+      goods_id:
+        type: integer
+      quantity:
+        minimum: 1
+        type: integer
+    required:
+    - goods_id
+    - quantity
+    type: object
+  order-payment-system_internal_types.AddressReq:
+    properties:
+      city:
+        type: string
+      detail:
+        maxLength: 200
+        type: string
+      district:
+        type: string
+      is_default:
+        type: boolean
+      phone:
+        maxLength: 20
+        type: string
+      province:
+        type: string
+      receiver:
+        maxLength: 50
+        type: string
+    required:
+    - detail
+    - phone
+    - receiver
+    type: object
+  order-payment-system_internal_types.AddressResp:
+    properties:
+      city:
+        type: string
+      detail:
+        type: string
+      district:
+        type: string
+      id:
+        type: integer
+      is_default:
+        type: boolean
+      phone:
+        type: string
+      province:
+        type: string
+      receiver:
+        type: string
+    type: object
+  order-payment-system_internal_types.CartCheckoutReq:
+    properties:
+      address_id:
+        description: 必填
+        type: integer
+    required:
+    - address_id
+    type: object
+  order-payment-system_internal_types.CartItemResp:
+    properties:
+      goods_id:
+        type: integer
+      goods_name:
+        type: string
+      id:
+        type: integer
+      price:
+        type: integer
+      quantity:
+        type: integer
+      selected:
+        type: boolean
+    type: object
+  order-payment-system_internal_types.CartListResp:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/order-payment-system_internal_types.CartItemResp'
+        type: array
+      total_price:
+        description: 仅计算selected的
+        type: integer
+    type: object
+  order-payment-system_internal_types.CategoryReq:
+    properties:
+      name:
+        maxLength: 50
+        type: string
+      parent_id:
+        description: nil=一级分类
+        type: integer
+      sort:
+        type: integer
+    required:
+    - name
+    type: object
+  order-payment-system_internal_types.CategoryResp:
+    properties:
+      children:
+        items:
+          $ref: '#/definitions/order-payment-system_internal_types.CategoryResp'
+        type: array
+      id:
+        type: integer
+      name:
+        type: string
+      parent_id:
+        type: integer
+      sort:
+        type: integer
+    type: object
+  order-payment-system_internal_types.Goods:
+    properties:
+      category_id:
+        type: integer
+      goodsname:
+        type: string
+      goodsnum:
+        type: integer
+      id:
+        type: integer
+      image_url:
+        type: string
+      price:
+        type: integer
+      sales:
+        type: integer
+    type: object
+  order-payment-system_internal_types.LoginRequest:
+    properties:
+      password:
+        maxLength: 128
+        minLength: 6
+        type: string
+      username:
+        maxLength: 32
+        minLength: 3
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  order-payment-system_internal_types.OrderItemResp:
+    properties:
+      goods_id:
+        type: integer
+      goods_name:
+        type: string
+      id:
+        type: integer
+      price:
+        type: integer
+      quantity:
+        type: integer
+    type: object
+  order-payment-system_internal_types.OrderLogResp:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      new_status:
+        type: integer
+      old_status:
+        type: integer
+      order_no:
+        type: string
+      remark:
+        type: string
+    type: object
+  order-payment-system_internal_types.OrderRequest:
+    properties:
+      address_id:
+        description: 收货地址ID
+        type: integer
+      buyNum:
+        type: integer
+      goodsId:
+        type: integer
+    type: object
+  order-payment-system_internal_types.OrderResp:
+    properties:
+      address_snapshot:
+        $ref: '#/definitions/order-payment-system_internal_types.AddressResp'
+      created_at:
+        type: string
+      id:
+        type: integer
+      items:
+        items:
+          $ref: '#/definitions/order-payment-system_internal_types.OrderItemResp'
+        type: array
+      order_no:
+        type: string
+      pay_time:
+        type: string
+      ship_company:
+        type: string
+      ship_no:
+        type: string
+      status:
+        type: integer
+      status_name:
+        type: string
+      total_price:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  order-payment-system_internal_types.RegisterRequest:
+    properties:
+      password:
+        maxLength: 128
+        minLength: 6
+        type: string
+      username:
+        maxLength: 32
+        minLength: 3
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  order-payment-system_internal_types.ReviewReq:
+    properties:
+      content:
+        maxLength: 500
+        type: string
+      goods_id:
+        type: integer
+      is_anon:
+        type: boolean
+      order_no:
+        type: string
+      rating:
+        maximum: 5
+        minimum: 1
+        type: integer
+    required:
+    - goods_id
+    - order_no
+    - rating
+    type: object
+  order-payment-system_internal_types.ShipRequest:
+    properties:
+      order_no:
+        type: string
+      ship_company:
+        type: string
+      ship_no:
+        type: string
+    required:
+    - order_no
+    - ship_company
+    - ship_no
+    type: object
+  order-payment-system_internal_types.ToggleSelectReq:
+    properties:
+      goods_id:
+        type: integer
+      selected:
+        type: boolean
+    required:
+    - goods_id
+    type: object
+  order-payment-system_internal_types.UpdateCartReq:
+    properties:
+      goods_id:
+        type: integer
+      quantity:
+        minimum: 1
+        type: integer
+    required:
+    - goods_id
+    - quantity
+    type: object
+  order-payment-system_pkg_response.Resp:
+    properties:
+      code:
+        description: 业务码
+        type: integer
+      data:
+        description: 数据
+      message:
+        description: 提示信息
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: 电商订单支付系统 API 文档
+  title: Order Payment System API
+  version: "1.0"
+paths:
+  /api/notify/alipay:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 支付宝回调参数
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: success
+          schema:
+            type: string
+      summary: 支付宝回调（内部接口）
+      tags:
+      - 支付
+  /help/users:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 获取所有用户
+      tags:
+      - 用户
+  /home:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有商品
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/order-payment-system_internal_types.Goods'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 商品列表
+      tags:
+      - 商品
+  /home/address:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 地址信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.AddressReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 创建地址
+      tags:
+      - 地址
+  /home/address/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 地址ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 删除地址
+      tags:
+      - 地址
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 地址ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 地址信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.AddressReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 更新地址
+      tags:
+      - 地址
+  /home/address/list:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/order-payment-system_internal_types.AddressResp'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 地址列表
+      tags:
+      - 地址
+  /home/cart/add:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 商品信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.AddCartReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 添加到购物车
+      tags:
+      - 购物车
+  /home/cart/delete:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 商品ID
+        in: query
+        name: goods_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 删除购物车商品
+      tags:
+      - 购物车
+  /home/cart/list:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  $ref: '#/definitions/order-payment-system_internal_types.CartListResp'
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 购物车列表
+      tags:
+      - 购物车
+  /home/cart/select:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: 勾选信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.ToggleSelectReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 切换购物车勾选
+      tags:
+      - 购物车
+  /home/cart/update:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 更新信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.UpdateCartReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 更新购物车数量
+      tags:
+      - 购物车
+  /home/category:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 分类信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.CategoryReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 创建分类
+      tags:
+      - 分类
+  /home/category/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 分类ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 删除分类
+      tags:
+      - 分类
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 分类ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 分类信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.CategoryReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 更新分类
+      tags:
+      - 分类
+  /home/category/tree:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/order-payment-system_internal_types.CategoryResp'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 分类树
+      tags:
+      - 分类
+  /home/order:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.OrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 创建订单
+      tags:
+      - 订单
+  /home/order/cancel:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单号
+        in: query
+        name: orderNo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 取消订单
+      tags:
+      - 订单
+  /home/order/cart_checkout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 结算信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.CartCheckoutReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 购物车结算
+      tags:
+      - 订单
+  /home/order/complete:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单号
+        in: query
+        name: order_no
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 完成订单
+      tags:
+      - 订单
+  /home/order/confirm:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单号
+        in: query
+        name: order_no
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 确认收货
+      tags:
+      - 订单
+  /home/order/logs:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 订单号
+        in: query
+        name: order_no
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/order-payment-system_internal_types.OrderLogResp'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 订单日志
+      tags:
+      - 订单
+  /home/order/ship:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 物流信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.ShipRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 商家发货
+      tags:
+      - 订单
+  /home/pay/create:
+    post:
+      consumes:
+      - application/json
+      description: 生成支付宝支付链接
+      parameters:
+      - description: 订单号
+        in: query
+        name: orderNo
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 创建支付
+      tags:
+      - 支付
+  /home/review:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 评价内容
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.ReviewReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 创建评价
+      tags:
+      - 评价
+  /home/review/list:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 商品ID
+        in: query
+        name: goods_id
+        required: true
+        type: integer
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 评价列表
+      tags:
+      - 评价
+  /home/search/goods:
+    get:
+      consumes:
+      - application/json
+      description: 根据商品ID查询详情
+      parameters:
+      - description: 商品ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  $ref: '#/definitions/order-payment-system_internal_types.Goods'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      security:
+      - BearerAuth: []
+      summary: 商品详情
+      tags:
+      - 商品
+  /home/search/orders:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/order-payment-system_internal_types.OrderResp'
+                  type: array
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 用户订单列表
+      tags:
+      - 订单
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: 登录获取 Token
+      parameters:
+      - description: 登录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      summary: 用户登录
+      tags:
+      - 用户
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: 创建新账号
+      parameters:
+      - description: 注册信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/order-payment-system_internal_types.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/order-payment-system_pkg_response.Resp'
+      summary: 用户注册
+      tags:
+      - 用户
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -13,8 +13,19 @@ import (
 	"syscall"
 	"time"
 
+	_ "order-payment-system/docs"
+
 	"go.uber.org/zap"
 )
+
+// @title           Order Payment System API
+// @version         1.0
+// @description     电商订单支付系统 API 文档
+// @host            localhost:8081
+// @BasePath        /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 
 func main() {
 

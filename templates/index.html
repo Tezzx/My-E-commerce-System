@@ -3,206 +3,598 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>订单支付系统</title>
+    <title>电商系统</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .system-title {
-            text-align: center;
-            color: white;
-            font-size: 28px;
-            margin: 30px 0;
-            font-weight: 600;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .login-card {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 25px;
-            text-align: center;
-            margin: 0 auto 30px;
-            max-width: 480px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-        }
-
-        .login-btn {
-            background: linear-gradient(135deg, #409eff, #2678e6);
-            color: white;
-            border: none;
-            padding: 14px 40px;
-            border-radius: 50px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(64,158,255,0.3);
-        }
-
-        .login-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(64,158,255,0.4);
-        }
-
-        .goods-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 25px;
-            padding: 0 10px;
-        }
-
-        .goods-card {
-            background: white;
-            border-radius: 18px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-
-        .goods-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .goods-name {
-            font-size: 22px;
-            color: #2c3e50;
-            font-weight: 600;
-            margin-bottom: 20px;
-        }
-
-        .price {
-            font-size: 32px;
-            color: #e74c3c;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-
-        .count-input-wrap {
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .count-label {
-            font-size: 16px;
-            color: #34495e;
-            font-weight: 500;
-        }
-
-        .count-input {
-            width: 80px;
-            padding: 10px;
-            border: 1px solid #e1e8ed;
-            border-radius: 8px;
-            font-size: 16px;
-            text-align: center;
-            outline: none;
-        }
-
-        .buy-btn {
-            width: 100%;
-            background: linear-gradient(135deg, #27ae60, #219653);
-            color: white;
-            border: none;
-            padding: 16px;
-            border-radius: 12px;
-            font-size: 17px;
-            cursor: pointer;
-        }
+        :root { --pri: #667eea; --pri2: #764ba2; --green: #22c55e; --red: #ef4444; --orange: #f59e0b; --bg: #f0f2f5; --card: #fff; --text: #333; --sub: #888; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height:100vh; }
+        /* Header */
+        .header { background: linear-gradient(135deg, var(--pri), var(--pri2)); color:#fff; padding:0 24px; display:flex; align-items:center; justify-content:space-between; height:56px; box-shadow:0 2px 8px rgba(0,0,0,.15); position:sticky; top:0; z-index:100; }
+        .header .logo { font-size:20px; font-weight:700; }
+        .header .user { display:flex; align-items:center; gap:12px; }
+        .header .user span { font-size:14px; opacity:.9; }
+        .header .user button { padding:6px 16px; border:1px solid rgba(255,255,255,.4); border-radius:6px; background:rgba(255,255,255,.15); color:#fff; cursor:pointer; font-size:13px; }
+        .header .user button:hover { background:rgba(255,255,255,.25); }
+        /* Nav */
+        .nav { display:flex; background:#fff; border-bottom:1px solid #e5e7eb; padding:0 24px; gap:4px; }
+        .nav a { padding:12px 20px; text-decoration:none; color:var(--sub); font-size:14px; border-bottom:3px solid transparent; cursor:pointer; transition:.2s; }
+        .nav a:hover, .nav a.active { color:var(--pri); border-bottom-color:var(--pri); }
+        /* Main */
+        .main { max-width:1200px; margin:24px auto; padding:0 24px; }
+        .section { display:none; }
+        .section.active { display:block; }
+        .card { background:var(--card); border-radius:12px; padding:24px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+        .card h3 { font-size:16px; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+        /* Grid */
+        .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+        .gcard { background:#fff; border-radius:10px; padding:16px; border:1px solid #eee; transition:box-shadow .2s; }
+        .gcard:hover { box-shadow:0 4px 16px rgba(0,0,0,.1); }
+        .gcard .gname { font-size:15px; font-weight:600; margin-bottom:8px; }
+        .gcard .gprice { color:var(--red); font-size:20px; font-weight:700; }
+        .gcard .gprice span { font-size:14px; }
+        .gcard .gmeta { color:var(--sub); font-size:12px; margin:4px 0; }
+        .gcard .gact { display:flex; gap:8px; margin-top:12px; align-items:center; }
+        .gcard .gact input { width:60px; padding:6px; border:1px solid #ddd; border-radius:6px; text-align:center; font-size:14px; }
+        /* Buttons */
+        .btn { padding:8px 16px; border:none; border-radius:6px; cursor:pointer; font-size:13px; transition:.2s; }
+        .btn-pri { background:var(--pri); color:#fff; } .btn-pri:hover { opacity:.9; }
+        .btn-out { background:#fff; border:1px solid var(--pri); color:var(--pri); }
+        .btn-red { background:var(--red); color:#fff; }
+        .btn-green { background:var(--green); color:#fff; }
+        .btn-sm { padding:4px 10px; font-size:12px; }
+        /* Table */
+        table { width:100%; border-collapse:collapse; }
+        th, td { padding:12px; text-align:left; border-bottom:1px solid #eee; font-size:13px; }
+        th { color:var(--sub); font-weight:500; }
+        .badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; }
+        .badge-pend { background:#fef3c7; color:#92400e; }
+        .badge-paid { background:#dbeafe; color:#1e40af; }
+        .badge-ship { background:#e0e7ff; color:#3730a3; }
+        .badge-done { background:#d1fae5; color:#065f46; }
+        .badge-cancel { background:#fee2e2; color:#991b1b; }
+        /* Modal */
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; justify-content:center; align-items:center; }
+        .modal.show { display:flex; }
+        .modal .modal-card { background:#fff; border-radius:12px; padding:24px; width:440px; max-height:80vh; overflow-y:auto; }
+        .modal .modal-card h3 { margin-bottom:16px; }
+        .form-row { display:flex; gap:8px; margin-bottom:12px; }
+        .form-row input, .form-row select { flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:6px; font-size:13px; }
+        /* Toast */
+        .toast { position:fixed; top:20px; right:20px; padding:12px 24px; border-radius:8px; color:#fff; font-size:14px; z-index:300; animation:slideIn .3s; }
+        .toast.success { background:var(--green); }
+        .toast.error { background:var(--red); }
+        @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+        /* Category filter */
+        .cat-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+        .cat-tag { padding:6px 14px; border-radius:20px; border:1px solid #ddd; cursor:pointer; font-size:13px; transition:.2s; }
+        .cat-tag:hover, .cat-tag.active { border-color:var(--pri); color:var(--pri); background:#eef2ff; }
+        /* Empty */
+        .empty { text-align:center; padding:40px; color:var(--sub); }
+        /* Rating stars */
+        .stars { color:var(--orange); }
+        /* Responsive */
+        @media(max-width:768px){ .grid{grid-template-columns:1fr;} .nav a{padding:10px 12px;font-size:12px;} }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2 class="system-title">订单支付系统</h2>
+<!-- Header -->
+<div class="header">
+    <div class="logo">🛒 电商平台</div>
+    <div class="user">
+        <span id="headerUser"></span>
+        <button onclick="logout()">退出</button>
+    </div>
+</div>
 
-        <div class="login-card">
-            <button class="login-btn" onclick="location.href='/auth'">用户登录</button>
+<!-- Navigation -->
+<div class="nav">
+    <a class="active" data-tab="goods" onclick="switchSection('goods')">🏠 商品</a>
+    <a data-tab="cart" onclick="switchSection('cart')">🛒 购物车 <span id="cartBadge" style="background:var(--red);color:#fff;border-radius:10px;padding:0 6px;font-size:11px;display:none;"></span></a>
+    <a data-tab="orders" onclick="switchSection('orders')">📦 订单</a>
+    <a data-tab="address" onclick="switchSection('address')">📍 地址</a>
+    <a data-tab="reviews" onclick="switchSection('reviews')">⭐ 评价</a>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+    <!-- Goods Section -->
+    <div id="sec-goods" class="section active">
+        <div class="card">
+            <div class="cat-bar" id="catBar"><span class="cat-tag active" onclick="filterGoods(0)">全部</span></div>
         </div>
+        <div class="grid" id="goodsGrid"></div>
+    </div>
 
-        <div class="goods-grid">
-            {{range .goodsList}}
-            <div class="goods-card">
-                <h3 class="goods-name">{{.GoodsName}}</h3>
-                <div class="price">¥ {{.Price}}</div>
-                <div class="count-input-wrap">
-                    <span class="count-label">购买数量：</span>
-                    <input type="number" class="count-input" id="count-{{.ID}}" min="1" value="1">
-                </div>
-                <!-- 修复：无引号，数字ID直接传 -->
-                <button class="buy-btn" onclick="createOrder('{{.ID}}')">立即下单支付</button>
-            </div>
-            {{end}}
+    <!-- Cart Section -->
+    <div id="sec-cart" class="section">
+        <div id="cartList"></div>
+        <div class="card" id="cartFoot" style="display:none; display:flex; justify-content:space-between; align-items:center;">
+            <div>合计: <b style="color:var(--red);font-size:18px;" id="cartTotal"></b></div>
+            <button class="btn btn-pri" onclick="showCheckout()">去结算</button>
         </div>
     </div>
 
+    <!-- Orders Section -->
+    <div id="sec-orders" class="section">
+        <div id="orderList"></div>
+    </div>
+
+    <!-- Address Section -->
+    <div id="sec-address" class="section">
+        <div class="card"><button class="btn btn-pri" onclick="showAddrModal()">+ 新增地址</button></div>
+        <div id="addrList"></div>
+    </div>
+
+    <!-- Reviews Section -->
+    <div id="sec-reviews" class="section">
+        <div class="card">
+            <select id="revGoodsSelect" onchange="loadReviews()" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;">
+                <option value="">-- 选择商品查看评价 --</option>
+            </select>
+        </div>
+        <div id="reviewList"></div>
+    </div>
+</div>
+
+<!-- Address Modal -->
+<div class="modal" id="addrModal">
+    <div class="modal-card">
+        <h3 id="addrModalTitle">新增地址</h3>
+        <input type="hidden" id="addrEditId">
+        <div class="form-row"><input id="addrReceiver" placeholder="收件人姓名"></div>
+        <div class="form-row"><input id="addrPhone" placeholder="手机号"></div>
+        <div class="form-row"><input id="addrProvince" placeholder="省"><input id="addrCity" placeholder="市"><input id="addrDistrict" placeholder="区"></div>
+        <div class="form-row"><input id="addrDetail" placeholder="详细地址 (街道/门牌号)" style="flex:3"></div>
+        <div class="form-row"><label style="font-size:13px;display:flex;align-items:center;gap:6px;"><input type="checkbox" id="addrDefault"> 设为默认地址</label></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-out" onclick="closeAddrModal()">取消</button>
+            <button class="btn btn-pri" id="addrSaveBtn" onclick="saveAddress()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Checkout Modal -->
+<div class="modal" id="checkoutModal">
+    <div class="modal-card">
+        <h3>确认下单</h3>
+        <p style="color:var(--sub);margin-bottom:12px;">请选择收货地址:</p>
+        <div id="checkoutAddrs" style="max-height:200px;overflow-y:auto;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-out" onclick="closeCheckout()">取消</button>
+            <button class="btn btn-pri" id="checkoutBtn" onclick="doCheckout()">确认下单</button>
+        </div>
+    </div>
+</div>
+
+<!-- Order Detail Modal -->
+<div class="modal" id="orderModal">
+    <div class="modal-card" style="width:520px;" id="orderDetail"></div>
+</div>
+
+<!-- Review Modal -->
+<div class="modal" id="reviewModal">
+    <div class="modal-card">
+        <h3>商品评价</h3>
+        <input type="hidden" id="revGoodsId">
+        <input type="hidden" id="revOrderNo">
+        <div class="form-row"><label>评分:</label><select id="revRating"><option value="5">⭐⭐⭐⭐⭐</option><option value="4">⭐⭐⭐⭐</option><option value="3">⭐⭐⭐</option><option value="2">⭐⭐</option><option value="1">⭐</option></select></div>
+        <div class="form-row"><input id="revContent" placeholder="分享您的体验 (可选)" style="flex:3"></div>
+        <div class="form-row"><label style="font-size:13px;"><input type="checkbox" id="revAnon"> 匿名评价</label></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-out" onclick="closeReviewModal()">取消</button>
+            <button class="btn btn-pri" onclick="submitReview()">提交</button>
+        </div>
+    </div>
+</div>
+
 <script>
-    function createOrder(goodsId) {
-        // 1. 校验登录
-        const token = localStorage.getItem('userToken');
-        if (!token) {
-            alert('请先登录再下单！');
-            window.location.href = '/auth';
-            return;
+// ==================== 全局状态 ====================
+const BASE = '';
+let token = localStorage.getItem('token')||'';
+let curTab = 'goods';
+let selectedAddrId = null;
+let goodsCache = [];
+let cartCache = [];
+
+// ==================== 初始化 ====================
+(function init() {
+    if(!token){ location.href='/auth'; return; }
+    document.getElementById('headerUser').textContent = '👤 '+localStorage.getItem('username');
+    loadCategories();
+    loadGoods();
+    loadCartBadge();
+})();
+
+// ==================== API 封装 ====================
+async function api(url, opts={}) {
+    opts.headers = Object.assign({'Content-Type':'application/json','Authorization':'Bearer '+token}, opts.headers||{});
+    const r = await fetch(BASE+url, opts);
+    return r.json();
+}
+
+function toast(msg, type='success') {
+    const t = document.createElement('div'); t.className='toast '+type; t.textContent=msg; document.body.appendChild(t);
+    setTimeout(()=>t.remove(), 2500);
+}
+
+// ==================== 导航 ====================
+function switchSection(tab) {
+    document.querySelectorAll('.nav a').forEach(a=>a.classList.remove('active'));
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('sec-'+tab).classList.add('active');
+    curTab = tab;
+    if(tab==='cart') loadCart();
+    else if(tab==='orders') loadOrders();
+    else if(tab==='address') loadAddresses();
+    else if(tab==='reviews') initReviewTab();
+    else if(tab==='goods') loadGoods();
+}
+
+function logout() { localStorage.clear(); location.href='/auth'; }
+
+// ==================== 分类 ====================
+async function loadCategories() {
+    try {
+        const d = await api('/home/category/tree');
+        if(d.code!==0) return;
+        const bar = document.getElementById('catBar');
+        function render(cats, depth) {
+            let html = '';
+            cats.forEach(c => {
+                const prefix = depth>0?'　'.repeat(depth):'';
+                html += `<span class="cat-tag" onclick="filterGoods(${c.id})">${prefix}${c.name}</span>`;
+                if(c.children) html += render(c.children, depth+1);
+            });
+            return html;
         }
+        bar.innerHTML = '<span class="cat-tag active" onclick="filterGoods(0)">全部</span>'+render(d.data, 0);
+    }catch(e){}
+}
 
-        // 2. 获取购买数量
-        const buyNum = parseInt(document.getElementById(`count-${goodsId}`).value);
-        if (isNaN(buyNum) || buyNum < 1) {
-            alert('购买数量必须大于0');
-            return;
-        }
+// ==================== 商品 ====================
+let catFilter = 0;
+function filterGoods(catId) {
+    catFilter = catId;
+    document.querySelectorAll('#catBar .cat-tag').forEach((t,i)=>t.classList.toggle('active', i===0?catId===0:false));
+    renderGoods();
+}
 
-        if (!confirm(`确认购买 ${buyNum} 件？`)) return;
+async function loadGoods() {
+    try {
+        const d = await api('/home/');
+        if(d.code===0&&d.data){ goodsCache = Array.isArray(d.data)?d.data:(d.data.list||d.data.items||[]); }
+        renderGoods();
+    }catch(e){}
+}
 
-        // 3. 发送请求（✅ 核心修复：参数名和后端统一为 buyNum）
-        fetch('/order/create', {
-            method: 'POST',
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + token
-            },
-            body: JSON.stringify({
-                goodsId: parseInt(goodsId),
-                buyNum: buyNum  
-            })
-        })
-        .then(res => res.json())
-        .then(data => {
-            alert(data.msg);
-                const token = localStorage.getItem('userToken'); 
-                if (!token) {
-                    alert("请先登录");
-                    window.location.href = "/auth";
-                    return;
-                }
-                const orderNo = data.data; 
-                window.location.href = `/order/topay?orderNo=${orderNo}`;
-            
-        })
+function renderGoods() {
+    const grid = document.getElementById('goodsGrid');
+    let list = goodsCache;
+    if(catFilter>0) list = list.filter(g=>g.category_id===catFilter);
+    if(!list.length){ grid.innerHTML='<div class="empty">暂无商品</div>'; return; }
+    grid.innerHTML = list.map(g=>`
+        <div class="gcard">
+            <div class="gname">${esc(g.goodsname||g.goodsName)}</div>
+            <div class="gmeta">库存: ${g.goodsnum||g.goodsNum} | 销量: ${g.sales||0} | <a href="javascript:void(0)" onclick="switchSection('reviews');document.getElementById('revGoodsSelect').value='${g.id}';loadReviews()" style="color:var(--pri);">查看评价</a></div>
+            <div class="gprice"><span>¥</span>${g.price}</div>
+            <div class="gact">
+                <input type="number" value="1" min="1" max="${g.goodsnum||g.goodsNum}" id="qty_${g.id}">
+                <button class="btn btn-pri btn-sm" onclick="addCart(${g.id})">加入购物车</button>
+                <button class="btn btn-out btn-sm" onclick="buyNow(${g.id})">立即购买</button>
+            </div>
+        </div>
+    `).join('');
+}
 
-        .catch(err => alert('请求错误：' + err.message));
+function esc(s) { return s?String(s).replace(/</g,'&lt;').replace(/>/g,'&gt;'):''; }
+
+// ==================== 购物车 ====================
+async function addCart(goodsId) {
+    const qty = parseInt(document.getElementById('qty_'+goodsId)?.value||1);
+    const d = await api('/home/cart/add', {method:'POST',body:JSON.stringify({goods_id:goodsId,quantity:qty})});
+    if(d.code===0){ toast('已加入购物车'); loadCartBadge(); }
+    else toast(d.message,'error');
+}
+
+async function buyNow(goodsId) {
+    const qty = parseInt(document.getElementById('qty_'+goodsId)?.value||1);
+    // 先看看有没有地址
+    const ad = await api('/home/address/list');
+    if(ad.code!==0||!ad.data||!ad.data.length){ toast('请先添加收货地址','error'); switchSection('address'); return; }
+    showQuickBuy(goodsId, qty, ad.data);
+}
+
+let quickBuyAddr = null;
+let quickBuyGoods = null;
+let quickBuyQty = 0;
+
+function showQuickBuy(goodsId, qty, addrs) {
+    quickBuyGoods = goodsId; quickBuyQty = qty;
+    const html = addrs.map(a=>`
+        <label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #eee;border-radius:6px;margin-bottom:4px;cursor:pointer;">
+            <input type="radio" name="addr" value="${a.id}" onchange="quickBuyAddr=${a.id}"> ${a.receiver} ${a.phone} ${a.province||''}${a.city||''}${a.district||''} ${a.detail}
+        </label>`).join('');
+    document.getElementById('checkoutAddrs').innerHTML = html;
+    document.getElementById('checkoutBtn').textContent = '确认下单';
+    document.getElementById('checkoutBtn').onclick = doQuickBuy;
+    document.getElementById('checkoutModal').classList.add('show');
+}
+
+async function doQuickBuy() {
+    if(!quickBuyAddr){ toast('请选择收货地址','error'); return; }
+    const d = await api('/home/order/', {method:'POST',body:JSON.stringify({goodsId:quickBuyGoods,buyNum:quickBuyQty,address_id:quickBuyAddr})});
+    if(d.code===0){ toast('下单成功! 订单号: '+d.data); closeCheckout(); loadOrders(); }
+    else toast(d.message,'error');
+}
+
+async function loadCart() {
+    const d = await api('/home/cart/list');
+    if(d.code!==0||!d.data||!d.data.items||!d.data.items.length){
+        document.getElementById('cartList').innerHTML = '<div class="empty">购物车为空</div>';
+        document.getElementById('cartFoot').style.display='none';
+        return;
     }
+    cartCache = d.data;
+    document.getElementById('cartFoot').style.display='flex';
+    document.getElementById('cartTotal').textContent = '¥'+d.data.total_price;
+    document.getElementById('cartList').innerHTML = `
+        <div class="card"><table>
+            <thead><tr><th>商品</th><th>单价</th><th>数量</th><th>小计</th><th>操作</th></tr></thead>
+            <tbody>${d.data.items.map(it=>`
+                <tr>
+                    <td><b>${esc(it.goods_name)}</b></td>
+                    <td>¥${it.price}</td>
+                    <td><input type="number" value="${it.quantity}" min="1" style="width:60px;padding:4px;" onchange="updateCartItem(${it.goods_id},this.value)"></td>
+                    <td>¥${it.price*it.quantity}</td>
+                    <td><button class="btn btn-red btn-sm" onclick="delCart(${it.goods_id})">删除</button></td>
+                </tr>`).join('')}
+            </tbody>
+        </table></div>`;
+}
+
+async function updateCartItem(goodsId, qty) {
+    await api('/home/cart/update', {method:'PUT',body:JSON.stringify({goods_id:goodsId,quantity:parseInt(qty)||1})});
+    loadCart(); loadCartBadge();
+}
+
+async function delCart(goodsId) {
+    await api('/home/cart/delete?goods_id='+goodsId, {method:'DELETE'});
+    loadCart(); loadCartBadge();
+}
+
+async function loadCartBadge() {
+    try {
+        const d = await api('/home/cart/list');
+        const badge = document.getElementById('cartBadge');
+        if(d.code===0&&d.data&&d.data.items&&d.data.items.length) { badge.textContent=d.data.items.length; badge.style.display='inline'; }
+        else badge.style.display='none';
+    }catch(e){}
+}
+
+// ==================== 结算 ====================
+async function showCheckout() {
+    const ad = await api('/home/address/list');
+    if(ad.code!==0||!ad.data||!ad.data.length){ toast('请先添加收货地址','error'); switchSection('address'); return; }
+    const html = ad.data.map(a=>`
+        <label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid #eee;border-radius:6px;margin-bottom:4px;cursor:pointer;">
+            <input type="radio" name="addr" value="${a.id}" ${a.is_default?'checked':''} onchange="selectedAddrId=${a.id}"> ${a.receiver} ${a.phone} ${a.province||''}${a.city||''}${a.district||''} ${a.detail}
+        </label>`).join('');
+    // auto-select default
+    const def = ad.data.find(a=>a.is_default);
+    if(def) selectedAddrId = def.id;
+    document.getElementById('checkoutAddrs').innerHTML = html;
+    document.getElementById('checkoutBtn').textContent = '确认下单';
+    document.getElementById('checkoutBtn').onclick = doCheckout;
+    document.getElementById('checkoutModal').classList.add('show');
+}
+
+async function doCheckout() {
+    if(!selectedAddrId){ toast('请选择收货地址','error'); return; }
+    const d = await api('/home/order/cart_checkout', {method:'POST',body:JSON.stringify({address_id:selectedAddrId})});
+    if(d.code===0){ toast('下单成功! 订单号: '+d.data); closeCheckout(); loadCart(); loadOrders(); }
+    else toast(d.message,'error');
+}
+
+function closeCheckout() {
+    document.getElementById('checkoutModal').classList.remove('show');
+    selectedAddrId = null; quickBuyAddr = null;
+}
+
+// ==================== 订单 ====================
+const STATUS = {0:'待支付',1:'已支付',2:'已取消',3:'已发货',4:'已收货',5:'已完成',6:'退款中',7:'已退款'};
+const STATUS_CLS = {0:'badge-pend',1:'badge-paid',2:'badge-cancel',3:'badge-ship',4:'badge-done',5:'badge-done',6:'badge-pend',7:'badge-cancel'};
+
+async function loadOrders() {
+    const d = await api('/home/search/orders');
+    if(d.code!==0||!d.data||!d.data.length){ document.getElementById('orderList').innerHTML='<div class="empty">暂无订单</div>'; return; }
+    document.getElementById('orderList').innerHTML = d.data.map(o=>{
+        const addr = o.address_snapshot ? (typeof o.address_snapshot==='string' ? JSON.parse(o.address_snapshot) : o.address_snapshot) : null;
+        const items = o.items||[];
+        return `
+        <div class="card" style="padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <b>${o.order_no}</b>
+                <span class="badge ${STATUS_CLS[o.status]||'badge-pend'}">${STATUS[o.status]||o.status}</span>
+            </div>
+            <div style="font-size:13px;color:var(--sub);margin-bottom:8px;">${new Date(o.CreatedAt).toLocaleString()}</div>
+            ${items.map(it=>`<div style="font-size:13px;">${esc(it.goods_name)} x${it.quantity} ¥${it.price}</div>`).join('')}
+            ${addr?`<div style="font-size:12px;color:var(--sub);">📍 ${esc(addr.receiver)} ${esc(addr.phone)} ${esc(addr.detail||'')}</div>`:''}
+            <div style="margin-top:4px;font-weight:700;">总计: ¥${o.total_price||0}</div>
+            ${o.ship_company?`<div style="font-size:13px;margin-top:4px;">🚚 ${o.ship_company} ${o.ship_no}</div>`:''}
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+                ${o.status===0?`<button class="btn btn-green btn-sm" onclick="payOrder('${o.order_no}')">去支付</button>`:''}
+                ${o.status===0?`<button class="btn btn-red btn-sm" onclick="cancelOrder('${o.order_no}')">取消</button>`:''}
+                ${o.status===1?`<button class="btn btn-out btn-sm" onclick="promptShip('${o.order_no}')">模拟发货</button>`:''}
+                ${o.status===3?`<button class="btn btn-pri btn-sm" onclick="confirmOrder('${o.order_no}')">确认收货</button>`:''}
+                ${o.status===4?`<button class="btn btn-green btn-sm" onclick="completeOrder('${o.order_no}')">完成</button>`:''}
+                ${o.status>=1?`<button class="btn btn-out btn-sm" onclick="showReview('${items.length?items[0].goods_id:''}','${o.order_no}')">评价</button>`:''}
+            </div>
+        </div>`}).join('');
+}
+
+async function cancelOrder(ono) {
+    const d = await api('/home/order/cancel?orderNo='+ono);
+    if(d.code===0){ toast('已取消'); loadOrders(); }
+    else toast(d.message,'error');
+}
+
+function payOrder(ono) { location.href='/pay?orderNo='+ono; }
+
+async function confirmOrder(ono) {
+    const d = await api('/home/order/confirm?order_no='+ono, {method:'POST'});
+    if(d.code===0){ toast('已确认收货'); loadOrders(); }
+    else toast(d.message,'error');
+}
+
+async function completeOrder(ono) {
+    const d = await api('/home/order/complete?order_no='+ono, {method:'POST'});
+    if(d.code===0){ toast('订单已完成'); loadOrders(); }
+    else toast(d.message,'error');
+}
+
+function promptShip(ono) {
+    const company = prompt('物流公司 (如: 顺丰):');
+    if(!company) return;
+    const no = prompt('物流单号:');
+    if(!no) return;
+    shipOrder(ono, company, no);
+}
+
+async function shipOrder(ono, company, shipNo) {
+    const d = await api('/home/order/ship', {method:'POST',body:JSON.stringify({order_no:ono,ship_company:company,ship_no:shipNo})});
+    if(d.code===0){ toast('发货成功'); loadOrders(); }
+    else toast(d.message,'error');
+}
+
+// ==================== 评价 ====================
+function showReview(goodsId, orderNo) {
+    if(!goodsId){ toast('无商品信息','error'); return; }
+    document.getElementById('revGoodsId').value = goodsId;
+    document.getElementById('revOrderNo').value = orderNo;
+    document.getElementById('reviewModal').classList.add('show');
+}
+
+function closeReviewModal() { document.getElementById('reviewModal').classList.remove('show'); }
+
+async function submitReview() {
+    const d = await api('/home/review/', {method:'POST',body:JSON.stringify({
+        goods_id: parseInt(document.getElementById('revGoodsId').value),
+        order_no: document.getElementById('revOrderNo').value,
+        rating: parseInt(document.getElementById('revRating').value),
+        content: document.getElementById('revContent').value,
+        is_anon: document.getElementById('revAnon').checked
+    })});
+    if(d.code===0){ toast('评价成功'); closeReviewModal(); }
+    else toast(d.message,'error');
+}
+
+// ==================== 地址 ====================
+async function loadAddresses() {
+    const d = await api('/home/address/list');
+    if(d.code!==0||!d.data||!d.data.length){ document.getElementById('addrList').innerHTML='<div class="empty">暂无地址</div>'; return; }
+    document.getElementById('addrList').innerHTML = d.data.map(a=>`
+        <div class="card" style="padding:16px;">
+            <div style="display:flex;justify-content:space-between;">
+                <b>${esc(a.receiver)} ${esc(a.phone)}</b>
+                ${a.is_default?'<span style="color:var(--pri);font-size:12px;">[默认]</span>':''}
+            </div>
+            <div style="color:var(--sub);font-size:13px;margin:4px 0;">${esc(a.province||'')}${esc(a.city||'')}${esc(a.district||'')} ${esc(a.detail)}</div>
+            <div style="margin-top:8px;display:flex;gap:6px;">
+                <button class="btn btn-out btn-sm" onclick="editAddr(${a.id})">编辑</button>
+                <button class="btn btn-red btn-sm" onclick="delAddr(${a.id})">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showAddrModal(editId) {
+    document.getElementById('addrModal').classList.add('show');
+    document.getElementById('addrEditId').value = '';
+    document.getElementById('addrReceiver').value = '';
+    document.getElementById('addrPhone').value = '';
+    document.getElementById('addrProvince').value = '';
+    document.getElementById('addrCity').value = '';
+    document.getElementById('addrDistrict').value = '';
+    document.getElementById('addrDetail').value = '';
+    document.getElementById('addrDefault').checked = false;
+    document.getElementById('addrModalTitle').textContent = '新增地址';
+    if(editId) editAddr(editId);
+}
+
+async function editAddr(id) {
+    document.getElementById('addrModal').classList.add('show');
+    document.getElementById('addrModalTitle').textContent = '编辑地址';
+    const d = await api('/home/address/list');
+    if(d.code!==0||!d.data) return;
+    const a = d.data.find(x=>x.id===id);
+    if(!a) return;
+    document.getElementById('addrEditId').value = a.id;
+    document.getElementById('addrReceiver').value = a.receiver;
+    document.getElementById('addrPhone').value = a.phone;
+    document.getElementById('addrProvince').value = a.province||'';
+    document.getElementById('addrCity').value = a.city||'';
+    document.getElementById('addrDistrict').value = a.district||'';
+    document.getElementById('addrDetail').value = a.detail;
+    document.getElementById('addrDefault').checked = a.is_default;
+}
+
+function closeAddrModal() { document.getElementById('addrModal').classList.remove('show'); }
+
+async function saveAddress() {
+    const id = document.getElementById('addrEditId').value;
+    const body = {
+        receiver: document.getElementById('addrReceiver').value,
+        phone: document.getElementById('addrPhone').value,
+        province: document.getElementById('addrProvince').value,
+        city: document.getElementById('addrCity').value,
+        district: document.getElementById('addrDistrict').value,
+        detail: document.getElementById('addrDetail').value,
+        is_default: document.getElementById('addrDefault').checked
+    };
+    let d;
+    if(id) d = await api('/home/address/'+id, {method:'PUT',body:JSON.stringify(body)});
+    else d = await api('/home/address/', {method:'POST',body:JSON.stringify(body)});
+    if(d.code===0){ toast(id?'地址已更新':'地址已添加'); closeAddrModal(); loadAddresses(); }
+    else toast(d.message,'error');
+}
+
+async function delAddr(id) {
+    if(!confirm('确定删除该地址?')) return;
+    const d = await api('/home/address/'+id, {method:'DELETE'});
+    if(d.code===0){ toast('已删除'); loadAddresses(); }
+    else toast(d.message,'error');
+}
+
+// ==================== 评价浏览 ====================
+function initReviewTab() {
+    // 填充商品下拉列表
+    const sel = document.getElementById('revGoodsSelect');
+    if(sel.options.length <= 1) {
+        goodsCache.forEach(g => {
+            sel.innerHTML += `<option value="${g.id}">${esc(g.goodsname||g.goodsName)}</option>`;
+        });
+    }
+}
+
+async function loadReviews() {
+    const goodsId = document.getElementById('revGoodsSelect').value;
+    if(!goodsId) { document.getElementById('reviewList').innerHTML='<div class="empty">请选择一个商品</div>'; return; }
+    const d = await api('/home/review/list?goods_id='+goodsId+'&page=1&size=100');
+    if(d.code!==0||!d.data||!d.data.list||!d.data.list.length){
+        document.getElementById('reviewList').innerHTML='<div class="empty">暂无评价，快来第一个评价吧</div>';
+        return;
+    }
+    document.getElementById('reviewList').innerHTML = d.data.list.map(r=>`
+        <div class="card" style="padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <b>${esc(r.username)}</b>
+                <span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+            </div>
+            ${r.content?`<div style="margin-top:8px;color:#555;font-size:14px;">${esc(r.content)}</div>`:''}
+        </div>
+    `).join('');
+}
 </script>
 </body>
 </html>

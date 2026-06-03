@@ -14,6 +14,11 @@ type DeleteCartReq struct {
 	GoodsID uint `json:"goods_id" binding:"required"`
 }
 
+type ToggleSelectReq struct {
+	GoodsID  uint `json:"goods_id" binding:"required"`
+	Selected bool `json:"selected"`
+}
+
 type CartItemResp struct {
 	ID        uint   `json:"id"`
 	GoodsID   uint   `json:"goods_id"`

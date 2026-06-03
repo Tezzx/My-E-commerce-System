@@ -9,12 +9,14 @@ import (
 type ReviewService struct {
 	reviewRepo *repository.ReviewRepo
 	orderRepo  *repository.OrderRepo
+	userRepo   *repository.UserRepo
 }
 
-func NewReviewService(reviewRepo *repository.ReviewRepo, orderRepo *repository.OrderRepo) *ReviewService {
+func NewReviewService(reviewRepo *repository.ReviewRepo, orderRepo *repository.OrderRepo, userRepo *repository.UserRepo) *ReviewService {
 	return &ReviewService{
 		reviewRepo: reviewRepo,
 		orderRepo:  orderRepo,
+		userRepo:   userRepo,
 	}
 }
 
@@ -25,7 +27,7 @@ func (s *ReviewService) Create(userID uint, req *types.ReviewReq) error {
 		return err
 	}
 	// 必须已支付才能评价
-	if order.Status != 1 {
+	if order.Status != model.OrderStatusPaid {
 		return nil
 	}
 	// 防止重复评价
@@ -48,11 +50,25 @@ func (s *ReviewService) ListByGoods(goodsID uint, page, size int) ([]types.Revie
 	if err != nil {
 		return nil, 0, err
 	}
+
+	// 批量获取用户名
+	userIDs := make([]uint, 0, len(reviews))
+	for _, r := range reviews {
+		if !r.IsAnon {
+			userIDs = append(userIDs, r.UserID)
+		}
+	}
+	usernameMap, _ := s.userRepo.GetUsernamesByIDs(userIDs)
+
 	var resp []types.ReviewResp
 	for _, r := range reviews {
-		username := "用户" // 简化：实际应从 userRepo 获取
-		if r.IsAnon {
-			username = "匿名用户"
+		username := "匿名用户"
+		if !r.IsAnon {
+			if name, ok := usernameMap[r.UserID]; ok {
+				username = name
+			} else {
+				username = "用户"
+			}
 		}
 		resp = append(resp, types.ReviewResp{
 			ID:       r.ID,

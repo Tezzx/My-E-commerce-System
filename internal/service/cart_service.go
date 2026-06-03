@@ -65,6 +65,19 @@ func (s *CartService) DeleteCart(userID uint, goodsID uint) error {
 	return s.cartRepo.DeleteItem(userID, goodsID)
 }
 
+func (s *CartService) ToggleSelect(userID uint, goodsID uint, selected bool) error {
+	item, err := s.cartRepo.GetItem(userID, goodsID)
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return errors.New("购物车内无此商品")
+	}
+
+	item.Selected = selected
+	return s.cartRepo.UpdateItem(item)
+}
+
 func (s *CartService) GetCartList(userID uint) (*types.CartListResp, error) {
 	items, err := s.cartRepo.GetCartByUserID(userID)
 	if err != nil {

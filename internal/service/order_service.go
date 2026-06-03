@@ -22,6 +22,7 @@ var orderSeq uint32
 type OrderService struct {
 	orderRepo   *repository.OrderRepo
 	goodsRepo   *repository.GoodsRepo
+	addressRepo *repository.AddressRepo
 	mq          *amqp.Connection
 	mqChannel   *amqp.Channel
 	confirmChan chan amqp.Confirmation
@@ -36,7 +37,7 @@ type publishTask struct {
 	resultChan chan error
 }
 
-func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.GoodsRepo, mq *amqp.Connection) *OrderService {
+func NewOrderService(orderRepo *repository.OrderRepo, goodsRepo *repository.GoodsRepo, addressRepo *repository.AddressRepo, mq *amqp.Connection) *OrderService {
 	ch, err := mq.Channel()
 	if err != nil {
 		panic(fmt.Errorf("failed to create channel: %w", err))
@@ -96,7 +97,7 @@ func (s *OrderService) asyncPublisher() {
 	}
 }
 
-func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uint, buyNum uint) (string, error) {
+func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uint, buyNum uint, addressID *uint, addressSnapshot string) (string, error) {
 	// ========== 1. 查询商品 & 扣减库存 ==========
 	price, _, goodsName, err := o.goodsRepo.GetGoodsByID(goodsID)
 	if err != nil {
@@ -142,14 +143,16 @@ func (o *OrderService) CreateOrder(ctx context.Context, userID uint, goodsID uin
 	orderNo := o.generateOrderNo(goodsID, userID)
 	totalPrice := price * buyNum
 	msg := &model.Order{
-		OrderNo:    orderNo,
-		UserID:     userID,
-		GoodsID:    goodsID,
-		GoodsName:  goodsName,
-		Price:      price,
-		BuyNum:     buyNum,
-		TotalPrice: totalPrice,
-		Status:     0,
+		OrderNo:         orderNo,
+		UserID:          userID,
+		GoodsID:         goodsID,
+		GoodsName:       goodsName,
+		Price:           price,
+		BuyNum:          buyNum,
+		TotalPrice:      totalPrice,
+		Status:          model.OrderStatusPending,
+		AddressID:       addressID,
+		AddressSnapshot: addressSnapshot,
 	}
 
 	body, err := json.Marshal(msg)
@@ -204,8 +207,18 @@ func (o *OrderService) SaveOrder(order *model.Order) error {
 		logger.Log.Error("保存订单到数据库失败",
 			zap.String("order_no", order.OrderNo),
 			zap.Error(err))
+		return err
 	}
-	return err
+
+	// 记录订单创建日志
+	_ = o.orderRepo.CreateOrderLog(&model.OrderLog{
+		OrderNo:   order.OrderNo,
+		OldStatus: -1,
+		NewStatus: model.OrderStatusPending,
+		Operator:  order.UserID,
+		Remark:    "订单创建",
+	})
+	return nil
 }
 
 func (o *OrderService) CancelOrder(orderNo string) error {
@@ -215,7 +228,7 @@ func (o *OrderService) CancelOrder(orderNo string) error {
 			zap.String("order_no", orderNo))
 		return err
 	}
-	if order.Status != 0 {
+	if order.Status != model.OrderStatusPending {
 		return nil
 	}
 
@@ -251,6 +264,15 @@ func (o *OrderService) CancelOrder(orderNo string) error {
 		return err
 	}
 
+	// 记录取消日志
+	_ = o.orderRepo.CreateOrderLog(&model.OrderLog{
+		OrderNo:   orderNo,
+		OldStatus: model.OrderStatusPending,
+		NewStatus: model.OrderStatusCancelled,
+		Operator:  0,
+		Remark:    "超时自动取消",
+	})
+
 	return nil
 }
 
@@ -282,4 +304,83 @@ func (o *OrderService) IsDuplicateKeyError(err error) bool {
 		return mysqlErr.Number == 1062
 	}
 	return strings.Contains(err.Error(), "Duplicate entry")
+}
+
+// ---------- 订单状态流转 ----------
+
+// ShipOrder 已支付 → 已发货（需物流信息）
+func (o *OrderService) ShipOrder(orderNo, shipCompany, shipNo string) error {
+	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return fmt.Errorf("订单不存在: %w", err)
+	}
+	if !model.CanTransition(order.Status, model.OrderStatusShipped) {
+		return fmt.Errorf("当前状态 %s 不允许发货", model.OrderStatusNames[order.Status])
+	}
+
+	if err := o.orderRepo.UpdateStatusWithShip(orderNo, shipCompany, shipNo); err != nil {
+		return err
+	}
+	_ = o.orderRepo.CreateOrderLog(&model.OrderLog{
+		OrderNo:   orderNo,
+		OldStatus: order.Status,
+		NewStatus: model.OrderStatusShipped,
+		Operator:  0,
+		Remark:    fmt.Sprintf("物流公司:%s 单号:%s", shipCompany, shipNo),
+	})
+	return nil
+}
+
+// ConfirmReceipt 已发货 → 已收货（用户确认）
+func (o *OrderService) ConfirmReceipt(userID uint, orderNo string) error {
+	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return fmt.Errorf("订单不存在: %w", err)
+	}
+	if order.UserID != userID {
+		return fmt.Errorf("无权操作此订单")
+	}
+	if !model.CanTransition(order.Status, model.OrderStatusReceived) {
+		return fmt.Errorf("当前状态 %s 不允许确认收货", model.OrderStatusNames[order.Status])
+	}
+
+	if err := o.orderRepo.UpdateStatus(orderNo, order.Status, model.OrderStatusReceived); err != nil {
+		return err
+	}
+	_ = o.orderRepo.CreateOrderLog(&model.OrderLog{
+		OrderNo:   orderNo,
+		OldStatus: order.Status,
+		NewStatus: model.OrderStatusReceived,
+		Operator:  userID,
+		Remark:    "用户确认收货",
+	})
+	return nil
+}
+
+// CompleteOrder 已收货 → 已完成
+func (o *OrderService) CompleteOrder(orderNo string) error {
+	order, err := o.orderRepo.GetOrderByOrderNo(orderNo)
+	if err != nil {
+		return fmt.Errorf("订单不存在: %w", err)
+	}
+	if !model.CanTransition(order.Status, model.OrderStatusCompleted) {
+		return fmt.Errorf("当前状态 %s 不允许完成", model.OrderStatusNames[order.Status])
+	}
+
+	if err := o.orderRepo.UpdateStatus(orderNo, order.Status, model.OrderStatusCompleted); err != nil {
+		return err
+	}
+	_ = o.orderRepo.CreateOrderLog(&model.OrderLog{
+		OrderNo:   orderNo,
+		OldStatus: order.Status,
+		NewStatus: model.OrderStatusCompleted,
+		Operator:  0,
+		Remark:    "订单已完成",
+	})
+	return nil
+}
+
+// GetOrderLogs 查询订单操作日志
+func (o *OrderService) GetOrderLogs(orderNo string) ([]model.OrderLog, error) {
+	return o.orderRepo.GetOrderLogs(orderNo)
 }

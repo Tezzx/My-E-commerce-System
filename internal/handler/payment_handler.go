@@ -22,10 +22,24 @@ func NewPaymentHandler(paymentService *service.PaymentService, alipayKey string)
 }
 
 // Create 提出支付请求
+// @Summary      创建支付
+// @Description  生成支付宝支付链接
+// @Tags         支付
+// @Accept       json
+// @Produce      json
+// @Param        orderNo  query     string  true  "订单号"
+// @Success      200      {object}  response.Resp{data=string}
+// @Failure      404      {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /home/pay/create [post]
 func (p *PaymentHandler) CreatePay(c *gin.Context) {
 
 	orderNo := c.Query("orderNo")
-	order, _ := p.paymentService.GetOrder(orderNo)
+	order, err := p.paymentService.GetOrder(orderNo)
+	if err != nil || order == nil {
+		response.Error(c, 404, 1, "订单不存在")
+		return
+	}
 
 	payUrl, err := p.paymentService.GenerateAlipayUrl(order)
 	if err != nil {
@@ -36,6 +50,13 @@ func (p *PaymentHandler) CreatePay(c *gin.Context) {
 	response.Success(c, payUrl)
 }
 
+// @Summary      支付宝回调（内部接口）
+// @Tags         支付
+// @Accept       json
+// @Produce      plain
+// @Param        body  body  object  true  "支付宝回调参数"
+// @Success      200   {string}  string  "success"
+// @Router       /api/notify/alipay [post]
 func (p *PaymentHandler) AlipayNotify(c *gin.Context) {
 
 	bm, err := alipay.ParseNotifyToBodyMap(c.Request)

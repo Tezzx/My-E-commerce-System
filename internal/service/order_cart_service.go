@@ -14,7 +14,7 @@ import (
 )
 
 // CreateCartOrder 从购物车创建订单
-func (o *OrderService) CreateCartOrder(ctx context.Context, userID uint, cartItems []model.CartItem) (string, error) {
+func (o *OrderService) CreateCartOrder(ctx context.Context, userID uint, cartItems []model.CartItem, addressID uint, addressSnapshot string) (string, error) {
 	if len(cartItems) == 0 {
 		return "", errors.New("无选中商品")
 	}
@@ -60,15 +60,17 @@ func (o *OrderService) CreateCartOrder(ctx context.Context, userID uint, cartIte
 	orderNo := fmt.Sprintf("%s%03d%d%d", now.Format("20060102150405"), now.UnixMilli()%1000, userID, 0)
 
 	msg := &model.Order{
-		OrderNo:    orderNo,
-		UserID:     userID,
-		GoodsID:    0,
-		GoodsName:  "购物车合并订单",
-		Price:      0,
-		BuyNum:     0,
-		TotalPrice: total,
-		Status:     0,
-		OrderItems: orderItems, // 把子项带上，后面给 MQ 和 SaveOrder 用
+		OrderNo:         orderNo,
+		UserID:          userID,
+		GoodsID:         0,
+		GoodsName:       "购物车合并订单",
+		Price:           0,
+		BuyNum:          0,
+		TotalPrice:      total,
+		Status:          model.OrderStatusPending,
+		AddressID:       &addressID,
+		AddressSnapshot: addressSnapshot,
+		OrderItems:      orderItems,
 	}
 
 	msgBytes, err := json.Marshal(msg)

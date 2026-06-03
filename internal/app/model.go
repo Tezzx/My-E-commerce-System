@@ -2,6 +2,7 @@ package app
 
 import (
 	"order-payment-system/internal/handler"
+	"order-payment-system/internal/repository"
 	"order-payment-system/job"
 
 	"github.com/redis/go-redis/v9"
@@ -18,6 +19,8 @@ type App struct {
 	addressHandler  *handler.AddressHandler
 	categoryHandler *handler.CategoryHandler
 	reviewHandler   *handler.ReviewHandler
+
+	UserRepo *repository.UserRepo
 
 	orderTimeout *job.OrderTimeoutJob
 	orderCreate  *job.OrderCreateConsumer

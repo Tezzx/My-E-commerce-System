@@ -70,3 +70,27 @@ func (u *UserRepo) GetAllUsers() ([]model.User, error) {
 	err := u.db.Find(&users).Error
 	return users, err
 }
+
+// GetRoleByID 获取用户角色
+func (u *UserRepo) GetRoleByID(userID uint) (string, error) {
+	var role string
+	err := u.db.Model(&model.User{}).Select("role").Where("id = ?", userID).Scan(&role).Error
+	return role, err
+}
+
+// GetUsernamesByIDs 批量获取用户名，返回 map[userID]username
+func (u *UserRepo) GetUsernamesByIDs(ids []uint) (map[uint]string, error) {
+	if len(ids) == 0 {
+		return map[uint]string{}, nil
+	}
+	var users []model.User
+	err := u.db.Select("id, username").Where("id IN ?", ids).Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[uint]string, len(users))
+	for _, user := range users {
+		result[user.ID] = user.Username
+	}
+	return result, nil
+}
