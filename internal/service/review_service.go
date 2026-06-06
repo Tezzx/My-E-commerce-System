@@ -4,6 +4,9 @@ import (
 	"order-payment-system/internal/model"
 	"order-payment-system/internal/repository"
 	"order-payment-system/internal/types"
+	"order-payment-system/pkg/logger"
+
+	"go.uber.org/zap"
 )
 
 type ReviewService struct {
@@ -26,8 +29,11 @@ func (s *ReviewService) Create(userID uint, req *types.ReviewReq) error {
 	if err != nil || order.UserID != userID {
 		return err
 	}
-	// 必须已支付才能评价
-	if order.Status != model.OrderStatusPaid {
+	// 必须已收货或已完成才能评价
+	if order.Status != model.OrderStatusReceived && order.Status != model.OrderStatusCompleted {
+		logger.Log.Warn("评价创建 - 订单状态不允许评价",
+			zap.String("order_no", req.OrderNo),
+			zap.Int("status", order.Status))
 		return nil
 	}
 	// 防止重复评价
@@ -42,6 +48,7 @@ func (s *ReviewService) Create(userID uint, req *types.ReviewReq) error {
 		Rating:  req.Rating,
 		Content: req.Content,
 		IsAnon:  req.IsAnon,
+		Status:  model.ReviewStatusPending, // 默认待审核
 	})
 }
 
@@ -51,7 +58,34 @@ func (s *ReviewService) ListByGoods(goodsID uint, page, size int) ([]types.Revie
 		return nil, 0, err
 	}
 
-	// 批量获取用户名
+	return s.buildReviewResp(reviews), total, nil
+}
+
+// ListPending 管理员查看待审核评价
+func (s *ReviewService) ListPending(page, size int) ([]types.ReviewResp, int64, error) {
+	reviews, total, err := s.reviewRepo.ListPending(page, size)
+	if err != nil {
+		return nil, 0, err
+	}
+	return s.buildReviewResp(reviews), total, nil
+}
+
+// Approve 通过评价审核
+func (s *ReviewService) Approve(reviewID uint) error {
+	return s.reviewRepo.Approve(reviewID)
+}
+
+// Reject 驳回评价
+func (s *ReviewService) Reject(reviewID uint) error {
+	return s.reviewRepo.Reject(reviewID)
+}
+
+func (s *ReviewService) AvgRating(goodsID uint) (float64, error) {
+	return s.reviewRepo.AvgRating(goodsID)
+}
+
+// buildReviewResp 组装评价响应（批量获取用户名）
+func (s *ReviewService) buildReviewResp(reviews []model.Review) []types.ReviewResp {
 	userIDs := make([]uint, 0, len(reviews))
 	for _, r := range reviews {
 		if !r.IsAnon {
@@ -80,9 +114,5 @@ func (s *ReviewService) ListByGoods(goodsID uint, page, size int) ([]types.Revie
 			IsAnon:   r.IsAnon,
 		})
 	}
-	return resp, total, nil
-}
-
-func (s *ReviewService) AvgRating(goodsID uint) (float64, error) {
-	return s.reviewRepo.AvgRating(goodsID)
+	return resp
 }

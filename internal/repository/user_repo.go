@@ -78,6 +78,13 @@ func (u *UserRepo) GetRoleByID(userID uint) (string, error) {
 	return role, err
 }
 
+// GetByID 根据ID获取完整用户信息
+func (u *UserRepo) GetByID(userID uint) (*model.User, error) {
+	var user model.User
+	err := u.db.First(&user, userID).Error
+	return &user, err
+}
+
 // GetUsernamesByIDs 批量获取用户名，返回 map[userID]username
 func (u *UserRepo) GetUsernamesByIDs(ids []uint) (map[uint]string, error) {
 	if len(ids) == 0 {

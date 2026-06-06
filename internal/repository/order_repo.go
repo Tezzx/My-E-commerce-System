@@ -59,6 +59,25 @@ func (o *OrderRepo) GetUserOrderList(userID uint) ([]model.Order, error) {
 	return orders, err
 }
 
+// GetUserOrderListWithPage 分页查询用户订单
+func (o *OrderRepo) GetUserOrderListWithPage(userID uint, page, size int, status *int) ([]model.Order, int64, error) {
+	var orders []model.Order
+	var total int64
+
+	query := o.db.Model(&model.Order{}).Where("user_id = ?", userID)
+	if status != nil {
+		query = query.Where("status = ?", *status)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * size
+	err := query.Preload("OrderItems").Order("created_at desc").Offset(offset).Limit(size).Find(&orders).Error
+	return orders, total, err
+}
+
 func (o *OrderRepo) ReturnDB() *gorm.DB {
 	return o.db
 }
@@ -95,7 +114,7 @@ func (o *OrderRepo) UpdateStatusWithShip(orderNo string, shipCompany, shipNo str
 	return nil
 }
 
-func (o *OrderRepo) ChangeStatusToPayed(orderNo string) error {
+func (o *OrderRepo) ChangeStatusToPaid(orderNo string) error {
 	now := time.Now()
 	result := o.db.Model(&model.Order{}).
 		Where("order_no = ? AND status = ?", orderNo, model.OrderStatusPending).

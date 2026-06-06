@@ -108,3 +108,13 @@ func (u *UserService) GetAllUsers() ([]model.User, error) {
 	}
 	return users, err
 }
+
+// GetCurrentUser 获取当前登录用户信息
+func (u *UserService) GetCurrentUser(userID uint) (*model.User, error) {
+	user, err := u.userRepo.GetByID(userID)
+	if err != nil {
+		logger.Log.Warn("获取用户信息失败", zap.Uint("user_id", userID), zap.Error(err))
+		return nil, errs.UserNotFound
+	}
+	return user, nil
+}

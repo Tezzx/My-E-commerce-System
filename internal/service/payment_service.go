@@ -30,7 +30,7 @@ func NewPaymentService(tm *repository.TransactionManager, orderRepo *repository.
 	isProd := false
 	aliClient, err := alipay.NewClient(cfg.AppID, cfg.PrivateKey, isProd)
 	if err != nil {
-		logger.Log.Error("初始化支付宝客户端失败", zap.Error(err))
+		logger.Log.Fatal("初始化支付宝客户端失败", zap.Error(err))
 	}
 
 	return &PaymentService{

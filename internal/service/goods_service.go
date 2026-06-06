@@ -53,3 +53,33 @@ func (g *GoodsService) GetGoodsList() ([]model.Goods, error) {
 	}
 	return goodsList, nil
 }
+
+// GetGoodsListWithPage 分页获取商品列表
+func (s *GoodsService) GetGoodsListWithPage(page, size int, categoryID *uint, status *int) ([]model.Goods, int64, error) {
+	goods, total, err := s.goodsRepo.GetGoodsListWithPage(page, size, categoryID, status)
+	if err != nil {
+		logger.Log.Error("分页获取商品列表失败", zap.Error(err))
+		return nil, 0, errs.GetGoodsError
+	}
+	return goods, total, nil
+}
+
+// UpdateGoods 更新商品信息
+func (s *GoodsService) UpdateGoods(goodsID uint, updates map[string]interface{}) error {
+	err := s.goodsRepo.UpdateGoods(goodsID, updates)
+	if err != nil {
+		logger.Log.Error("更新商品失败", zap.Uint("goods_id", goodsID), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// DeleteGoods 删除商品
+func (s *GoodsService) DeleteGoods(goodsID uint) error {
+	err := s.goodsRepo.DeleteGoods(goodsID)
+	if err != nil {
+		logger.Log.Error("删除商品失败", zap.Uint("goods_id", goodsID), zap.Error(err))
+		return err
+	}
+	return nil
+}

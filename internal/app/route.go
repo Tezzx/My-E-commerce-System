@@ -42,6 +42,7 @@ func SetupRoutes(app *App) *gin.Engine {
 	home := r.Group("/home")
 	home.Use(middleware.TokenIdentify())
 	{
+		home.GET("/me", app.userHandler.Me)
 		home.GET("/", app.goodsHandler.GetGoodsList)
 		home.GET("/search/goods", app.goodsHandler.GetGoodsDetail)
 		home.GET("/search/orders", app.orderHandler.GetUserOrders)
@@ -54,6 +55,12 @@ func SetupRoutes(app *App) *gin.Engine {
 			order.POST("/confirm", app.orderHandler.ConfirmReceipt)                                // 用户确认收货
 			order.POST("/complete", app.orderHandler.CompleteOrder)                                // 订单完成
 			order.GET("/logs", app.orderHandler.GetOrderLogs)                                      // 操作日志
+			// 退款
+			refund := order.Group("/refund")
+			{
+				refund.POST("/request", app.orderHandler.RequestRefund)                                        // 用户申请退款
+				refund.POST("/process", middleware.MerchantOnly(app.UserRepo), app.orderHandler.ProcessRefund) // 商家/管理员审批退款
+			}
 		}
 		pay := home.Group("/pay")
 		{
@@ -81,10 +88,26 @@ func SetupRoutes(app *App) *gin.Engine {
 			category.DELETE("/:id", middleware.AdminOnly(app.UserRepo), app.categoryHandler.Delete)
 			category.GET("/tree", app.categoryHandler.GetTree)
 		}
+		// 商品管理（商家/管理员）
+		goods := home.Group("/goods")
+		{
+			goods.POST("/", middleware.MerchantOnly(app.UserRepo), app.goodsHandler.CreateGoods)
+			goods.PUT("/:id", middleware.MerchantOnly(app.UserRepo), app.goodsHandler.UpdateGoods)
+			goods.DELETE("/:id", middleware.MerchantOnly(app.UserRepo), app.goodsHandler.DeleteGoods)
+			goods.GET("/list", middleware.MerchantOnly(app.UserRepo), app.goodsHandler.GetGoodsPageList)
+		}
 		review := home.Group("/review")
 		{
 			review.POST("/", app.reviewHandler.Create)
 			review.GET("/list", app.reviewHandler.List)
+			// 管理员审核
+			adminReview := review.Group("/")
+			adminReview.Use(middleware.AdminOnly(app.UserRepo))
+			{
+				adminReview.GET("/pending", app.reviewHandler.ListPending)
+				adminReview.POST("/:id/approve", app.reviewHandler.Approve)
+				adminReview.POST("/:id/reject", app.reviewHandler.Reject)
+			}
 		}
 	}
 	//辅助功能

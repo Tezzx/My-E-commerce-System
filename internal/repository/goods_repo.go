@@ -88,6 +88,9 @@ func (g *GoodsRepo) DeductStockSQL(goodsID uint, quantity int64) error {
 	if result.Error != nil {
 		return result.Error
 	}
+	if result.RowsAffected == 0 {
+		return errors.New("库存不足或商品不存在")
+	}
 	return nil
 }
 
@@ -196,4 +199,39 @@ func (g *GoodsRepo) GetGoodsList() ([]model.Goods, error) {
 	var goods []model.Goods
 	err := g.db.Find(&goods).Error
 	return goods, err
+}
+
+// GetGoodsListWithPage 分页查询商品列表
+func (g *GoodsRepo) GetGoodsListWithPage(page, size int, categoryID *uint, status *int) ([]model.Goods, int64, error) {
+	var goods []model.Goods
+	var total int64
+
+	query := g.db.Model(&model.Goods{})
+	if categoryID != nil {
+		query = query.Where("category_id = ?", *categoryID)
+	}
+	if status != nil {
+		query = query.Where("status = ?", *status)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * size
+	if err := query.Order("id desc").Offset(offset).Limit(size).Find(&goods).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return goods, total, nil
+}
+
+// UpdateGoods 更新商品信息
+func (g *GoodsRepo) UpdateGoods(goodsID uint, updates map[string]interface{}) error {
+	return g.db.Model(&model.Goods{}).Where("id = ?", goodsID).Updates(updates).Error
+}
+
+// DeleteGoods 软删除商品（将状态置为下架并删除）
+func (g *GoodsRepo) DeleteGoods(goodsID uint) error {
+	return g.db.Delete(&model.Goods{}, goodsID).Error
 }

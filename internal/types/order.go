@@ -53,3 +53,16 @@ type OrderLogResp struct {
 	Remark    string    `json:"remark"`
 	CreatedAt time.Time `json:"created_at"`
 }
+
+// ----- 退款相关 -----
+
+type RefundRequest struct {
+	OrderNo string `json:"order_no" binding:"required"`
+	Reason  string `json:"reason" binding:"required,max=500"`
+}
+
+type RefundProcessReq struct {
+	OrderNo  string `json:"order_no" binding:"required"`
+	Approved bool   `json:"approved"` // true=同意退款, false=拒绝
+	Remark   string `json:"remark"`
+}

@@ -121,3 +121,25 @@ func (u *UserHandler) GetAllUsers(c *gin.Context) {
 
 	response.Success(c, users)
 }
+
+// Me 获取当前登录用户信息（含角色）
+// @Summary      当前用户信息
+// @Tags         用户
+// @Accept       json
+// @Produce      json
+// @Success      200   {object}  response.Resp{data=types.UserInfo}
+// @Security     BearerAuth
+// @Router       /home/me [get]
+func (u *UserHandler) Me(c *gin.Context) {
+	userID := c.GetUint("userID")
+	user, err := u.userService.GetCurrentUser(userID)
+	if err != nil {
+		response.Error(c, 404, 1, "用户不存在")
+		return
+	}
+	response.Success(c, types.UserInfo{
+		ID:       user.ID,
+		Username: user.Username,
+		Role:     user.Role,
+	})
+}

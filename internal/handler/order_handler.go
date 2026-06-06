@@ -7,6 +7,7 @@ import (
 	"order-payment-system/internal/types"
 	"order-payment-system/pkg/logger"
 	"order-payment-system/pkg/response"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -257,10 +258,14 @@ func (o *OrderHandler) GetOrderLogs(c *gin.Context) {
 }
 
 // @Summary      用户订单列表
+// @Summary      用户订单列表
 // @Tags         订单
 // @Accept       json
 // @Produce      json
-// @Success      200   {object}  response.Resp{data=[]types.OrderResp}
+// @Param        page    query     int  false "页码"      default(1)
+// @Param        size    query     int  false "每页数量"  default(10)
+// @Param        status  query     int  false "订单状态筛选"
+// @Success      200     {object}  response.Resp
 // @Security     BearerAuth
 // @Router       /home/search/orders [get]
 func (o *OrderHandler) GetUserOrders(c *gin.Context) {
@@ -278,13 +283,119 @@ func (o *OrderHandler) GetUserOrders(c *gin.Context) {
 		return
 	}
 
-	orders, err := o.orderService.GetUserOrderList(userID)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
+
+	var status *int
+	if statusStr := c.Query("status"); statusStr != "" {
+		s, _ := strconv.Atoi(statusStr)
+		status = &s
+	}
+
+	orders, total, err := o.orderService.GetUserOrderListWithPage(userID, page, size, status)
 	if err != nil {
 		logger.Log.Error("获取用户订单列表失败", zap.Uint("user_id", userID), zap.Error(err))
 		response.Error(c, 500, 1, "获取订单失败")
 		return
 	}
 
-	logger.Log.Debug("获取用户订单列表成功", zap.Uint("user_id", userID), zap.Int("orders_count", len(orders))) // 根据需要调整级别
-	response.Success(c, orders)
+	// 组装 DTO
+	var dto []types.OrderResp
+	for _, order := range orders {
+		statusName := model.OrderStatusNames[order.Status]
+
+		var items []types.OrderItemResp
+		for _, item := range order.OrderItems {
+			items = append(items, types.OrderItemResp{
+				ID:        item.ID,
+				GoodsID:   item.GoodsID,
+				GoodsName: item.GoodsName,
+				Price:     item.Price,
+				Quantity:  item.Quantity,
+			})
+		}
+
+		resp := types.OrderResp{
+			ID:         order.ID,
+			OrderNo:    order.OrderNo,
+			UserID:     order.UserID,
+			TotalPrice: order.TotalPrice,
+			Status:     order.Status,
+			StatusName: statusName,
+			PayTime:    order.PayTime,
+			CreatedAt:  order.CreatedAt,
+			Items:      items,
+		}
+		// 快递信息
+		if order.ShipCompany != "" {
+			resp.ShipCompany = order.ShipCompany
+			resp.ShipNo = order.ShipNo
+		}
+		dto = append(dto, resp)
+	}
+
+	logger.Log.Debug("获取用户订单列表成功", zap.Uint("user_id", userID), zap.Int("count", len(dto)))
+	response.Success(c, gin.H{
+		"list":  dto,
+		"total": total,
+		"page":  page,
+		"size":  size,
+	})
+}
+
+// ==================== 退款相关 ====================
+
+// @Summary      申请退款
+// @Tags         订单
+// @Accept       json
+// @Produce      json
+// @Param        body  body      types.RefundRequest  true  "退款申请"
+// @Success      200   {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /home/order/refund/request [post]
+func (o *OrderHandler) RequestRefund(c *gin.Context) {
+	var req types.RefundRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, 400, 1, "参数错误")
+		return
+	}
+	userID := c.GetUint("userID")
+	if err := o.orderService.RequestRefund(userID, req.OrderNo, req.Reason); err != nil {
+		logger.Log.Error("申请退款失败", zap.String("order_no", req.OrderNo), zap.Error(err))
+		response.Error(c, 500, 1, err.Error())
+		return
+	}
+	response.Success(c, "退款申请已提交")
+}
+
+// @Summary      处理退款（商家/管理员审批）
+// @Tags         订单
+// @Accept       json
+// @Produce      json
+// @Param        body  body      types.RefundProcessReq  true  "审批信息"
+// @Success      200   {object}  response.Resp
+// @Security     BearerAuth
+// @Router       /home/order/refund/process [post]
+func (o *OrderHandler) ProcessRefund(c *gin.Context) {
+	var req types.RefundProcessReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, 400, 1, "参数错误")
+		return
+	}
+
+	if req.Approved {
+		if err := o.orderService.ProcessRefund(req.OrderNo); err != nil {
+			logger.Log.Error("退款审批通过失败", zap.String("order_no", req.OrderNo), zap.Error(err))
+			response.Error(c, 500, 1, err.Error())
+			return
+		}
+		response.Success(c, "退款已通过")
+	} else {
+		if err := o.orderService.RejectRefund(req.OrderNo, req.Remark); err != nil {
+			logger.Log.Error("退款审批拒绝失败", zap.String("order_no", req.OrderNo), zap.Error(err))
+			response.Error(c, 500, 1, err.Error())
+			return
+		}
+		response.Success(c, "退款已拒绝")
+	}
 }

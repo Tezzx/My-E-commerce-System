@@ -18,5 +18,15 @@ func InitMySQL(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 配置连接池
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(100)       // 最大打开连接数
+	sqlDB.SetMaxIdleConns(10)        // 最大空闲连接数
+	sqlDB.SetConnMaxLifetime(3600e9) // 连接最大存活时间 1小时（纳秒）
+
 	return DB, nil
 }

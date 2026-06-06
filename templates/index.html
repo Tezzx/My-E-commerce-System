@@ -116,7 +116,23 @@
 
     <!-- Orders Section -->
     <div id="sec-orders" class="section">
+        <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <label style="font-size:13px;">状态:</label>
+            <select id="orderStatusFilter" onchange="loadOrders(1)" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;">
+                <option value="">全部</option>
+                <option value="0">待支付</option>
+                <option value="1">已支付</option>
+                <option value="2">已取消</option>
+                <option value="3">已发货</option>
+                <option value="4">已收货</option>
+                <option value="5">已完成</option>
+                <option value="6">退款中</option>
+                <option value="7">已退款</option>
+            </select>
+            <span style="font-size:12px;color:var(--sub);margin-left:auto;" id="orderPageInfo"></span>
+        </div>
         <div id="orderList"></div>
+        <div id="orderPager" style="display:flex;justify-content:center;gap:8px;margin-top:16px;"></div>
     </div>
 
     <!-- Address Section -->
@@ -133,6 +149,20 @@
             </select>
         </div>
         <div id="reviewList"></div>
+    </div>
+
+    <!-- Goods Management Section (Admin/Merchant) -->
+    <div id="sec-goods-mgr" class="section">
+        <div class="card"><button class="btn btn-pri" onclick="showGoodsForm()">+ 新增商品</button></div>
+        <div id="goodsMgrList"></div>
+        <div id="goodsMgrPager" style="display:flex;justify-content:center;gap:8px;margin-top:16px;"></div>
+    </div>
+
+    <!-- Review Moderation Section (Admin) -->
+    <div id="sec-review-mgr" class="section">
+        <h3 style="margin-bottom:12px;">📋 评价审核</h3>
+        <div id="pendingReviewList"></div>
+        <div id="pendingReviewPager" style="display:flex;justify-content:center;gap:8px;margin-top:16px;"></div>
     </div>
 </div>
 
@@ -187,6 +217,51 @@
     </div>
 </div>
 
+<!-- Refund Request Modal -->
+<div class="modal" id="refundModal">
+    <div class="modal-card">
+        <h3>申请退款</h3>
+        <input type="hidden" id="refundOrderNo">
+        <div class="form-row"><label>订单号:</label><span id="refundOrderNoLabel" style="font-weight:600;"></span></div>
+        <div class="form-row"><input id="refundReason" placeholder="请填写退款原因（必填）" style="flex:3"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-out" onclick="closeRefundModal()">取消</button>
+            <button class="btn btn-red" onclick="submitRefund()">提交退款申请</button>
+        </div>
+    </div>
+</div>
+
+<!-- Refund Process Modal (Admin) -->
+<div class="modal" id="refundProcessModal">
+    <div class="modal-card">
+        <h3>退款审批</h3>
+        <input type="hidden" id="rpOrderNo">
+        <div class="form-row"><label>订单号:</label><span id="rpOrderNoLabel" style="font-weight:600;"></span></div>
+        <div class="form-row"><input id="rpRemark" placeholder="审批备注" style="flex:3"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-out" onclick="closeRefundProcess()">取消</button>
+            <button class="btn btn-red" onclick="processRefund(false)">拒绝退款</button>
+            <button class="btn btn-green" onclick="processRefund(true)">同意退款</button>
+        </div>
+    </div>
+</div>
+
+<!-- Goods Form Modal -->
+<div class="modal" id="goodsFormModal">
+    <div class="modal-card">
+        <h3 id="goodsFormTitle">新增商品</h3>
+        <input type="hidden" id="goodsEditId">
+        <div class="form-row"><input id="gformName" placeholder="商品名称（必填）"></div>
+        <div class="form-row"><input id="gformPrice" type="number" placeholder="价格（分，必填）"><input id="gformStock" type="number" placeholder="库存数量（必填）"></div>
+        <div class="form-row"><input id="gformCategory" type="number" placeholder="分类ID（可选）"><input id="gformImage" placeholder="图片URL（可选）"></div>
+        <div class="form-row"><label style="font-size:13px;"><select id="gformStatus"><option value="1">上架</option><option value="0">下架</option></select></label></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+            <button class="btn btn-out" onclick="closeGoodsForm()">取消</button>
+            <button class="btn btn-pri" onclick="saveGoods()">保存</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // ==================== 全局状态 ====================
 const BASE = '';
@@ -195,11 +270,31 @@ let curTab = 'goods';
 let selectedAddrId = null;
 let goodsCache = [];
 let cartCache = [];
+let userRole = localStorage.getItem('role')||'user'; // user/merchant/admin
+let orderPage = 1, orderPageSize = 10;
+let goodsMgrPage = 1, goodsMgrPageSize = 10;
+let pendingReviewPage = 1, pendingReviewPageSize = 10;
 
 // ==================== 初始化 ====================
-(function init() {
+(async function init() {
     if(!token){ location.href='/auth'; return; }
-    document.getElementById('headerUser').textContent = '👤 '+localStorage.getItem('username');
+    // 获取用户角色
+    try {
+        const me = await api('/home/me');
+        if(me.code===0&&me.data){
+            userRole = me.data.role||'user';
+            localStorage.setItem('role', userRole);
+            localStorage.setItem('username', me.data.username);
+        }
+    }catch(e){}
+    document.getElementById('headerUser').textContent = (userRole!=='user'?'🔧 ':'👤 ')+localStorage.getItem('username');
+    // 管理员/商家显示管理导航
+    if(userRole==='admin'||userRole==='merchant'){
+        document.querySelector('.nav').innerHTML += '<a data-tab="goods-mgr" onclick="switchSection(\'goods-mgr\')">📋 商品管理</a>';
+    }
+    if(userRole==='admin'){
+        document.querySelector('.nav').innerHTML += '<a data-tab="review-mgr" onclick="switchSection(\'review-mgr\')">✅ 评价审核</a>';
+    }
     loadCategories();
     loadGoods();
     loadCartBadge();
@@ -220,15 +315,18 @@ function toast(msg, type='success') {
 // ==================== 导航 ====================
 function switchSection(tab) {
     document.querySelectorAll('.nav a').forEach(a=>a.classList.remove('active'));
-    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    const navEl = document.querySelector(`[data-tab="${tab}"]`);
+    if(navEl) navEl.classList.add('active');
     document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
     document.getElementById('sec-'+tab).classList.add('active');
     curTab = tab;
     if(tab==='cart') loadCart();
-    else if(tab==='orders') loadOrders();
+    else if(tab==='orders') loadOrders(1);
     else if(tab==='address') loadAddresses();
     else if(tab==='reviews') initReviewTab();
     else if(tab==='goods') loadGoods();
+    else if(tab==='goods-mgr') loadGoodsMgr(1);
+    else if(tab==='review-mgr') loadPendingReviews(1);
 }
 
 function logout() { localStorage.clear(); location.href='/auth'; }
@@ -405,37 +503,103 @@ function closeCheckout() {
 const STATUS = {0:'待支付',1:'已支付',2:'已取消',3:'已发货',4:'已收货',5:'已完成',6:'退款中',7:'已退款'};
 const STATUS_CLS = {0:'badge-pend',1:'badge-paid',2:'badge-cancel',3:'badge-ship',4:'badge-done',5:'badge-done',6:'badge-pend',7:'badge-cancel'};
 
-async function loadOrders() {
-    const d = await api('/home/search/orders');
-    if(d.code!==0||!d.data||!d.data.length){ document.getElementById('orderList').innerHTML='<div class="empty">暂无订单</div>'; return; }
-    document.getElementById('orderList').innerHTML = d.data.map(o=>{
+async function loadOrders(page) {
+    if(page) orderPage = page;
+    const status = document.getElementById('orderStatusFilter').value;
+    let url = `/home/search/orders?page=${orderPage}&size=${orderPageSize}`;
+    if(status!=='') url += '&status='+status;
+    const d = await api(url);
+    // 兼容新旧格式
+    let orders = d.data, total = 0;
+    if(d.data&&d.data.list) { orders = d.data.list; total = d.data.total; }
+    else if(Array.isArray(d.data)) { orders = d.data; total = orders.length; }
+    if(!orders||!orders.length){
+        document.getElementById('orderList').innerHTML='<div class="empty">暂无订单</div>';
+        document.getElementById('orderPager').innerHTML='';
+        document.getElementById('orderPageInfo').textContent='';
+        return;
+    }
+    document.getElementById('orderPageInfo').textContent = `共 ${total} 条，第 ${orderPage} 页`;
+    document.getElementById('orderList').innerHTML = orders.map(o=>{
         const addr = o.address_snapshot ? (typeof o.address_snapshot==='string' ? JSON.parse(o.address_snapshot) : o.address_snapshot) : null;
         const items = o.items||[];
+        const canRefund = (o.status===1||o.status===3||o.status===4) && (userRole==='user');
+        const canProcessRefund = o.status===6 && (userRole==='admin'||userRole==='merchant');
         return `
         <div class="card" style="padding:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <b>${o.order_no}</b>
                 <span class="badge ${STATUS_CLS[o.status]||'badge-pend'}">${STATUS[o.status]||o.status}</span>
             </div>
-            <div style="font-size:13px;color:var(--sub);margin-bottom:8px;">${new Date(o.CreatedAt).toLocaleString()}</div>
+            <div style="font-size:13px;color:var(--sub);margin-bottom:8px;">${new Date(o.CreatedAt||o.created_at).toLocaleString()}</div>
             ${items.map(it=>`<div style="font-size:13px;">${esc(it.goods_name)} x${it.quantity} ¥${it.price}</div>`).join('')}
+            ${!items.length&&o.goods_name?`<div style="font-size:13px;">${esc(o.goods_name)} ¥${o.price||''}</div>`:''}
             ${addr?`<div style="font-size:12px;color:var(--sub);">📍 ${esc(addr.receiver)} ${esc(addr.phone)} ${esc(addr.detail||'')}</div>`:''}
             <div style="margin-top:4px;font-weight:700;">总计: ¥${o.total_price||0}</div>
             ${o.ship_company?`<div style="font-size:13px;margin-top:4px;">🚚 ${o.ship_company} ${o.ship_no}</div>`:''}
             <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
                 ${o.status===0?`<button class="btn btn-green btn-sm" onclick="payOrder('${o.order_no}')">去支付</button>`:''}
                 ${o.status===0?`<button class="btn btn-red btn-sm" onclick="cancelOrder('${o.order_no}')">取消</button>`:''}
-                ${o.status===1?`<button class="btn btn-out btn-sm" onclick="promptShip('${o.order_no}')">模拟发货</button>`:''}
+                ${canRefund?`<button class="btn btn-out btn-sm" style="color:var(--orange);border-color:var(--orange);" onclick="showRefund('${o.order_no}')">申请退款</button>`:''}
+                ${canProcessRefund?`<button class="btn btn-pri btn-sm" onclick="showRefundProcess('${o.order_no}')">审批退款</button>`:''}
+                ${(userRole==='admin'||userRole==='merchant')&&o.status===1?`<button class="btn btn-out btn-sm" onclick="promptShip('${o.order_no}')">发货</button>`:''}
                 ${o.status===3?`<button class="btn btn-pri btn-sm" onclick="confirmOrder('${o.order_no}')">确认收货</button>`:''}
                 ${o.status===4?`<button class="btn btn-green btn-sm" onclick="completeOrder('${o.order_no}')">完成</button>`:''}
-                ${o.status>=1?`<button class="btn btn-out btn-sm" onclick="showReview('${items.length?items[0].goods_id:''}','${o.order_no}')">评价</button>`:''}
+                ${o.status>=3?`<button class="btn btn-out btn-sm" onclick="showReview('${items.length?items[0].goods_id:(o.goods_id||'')}','${o.order_no}')">评价</button>`:''}
             </div>
         </div>`}).join('');
+    // 分页器
+    const totalPages = Math.ceil(total/orderPageSize);
+    let pagerHtml = '';
+    if(totalPages>1){
+        pagerHtml += `<button class="btn btn-out btn-sm" onclick="loadOrders(${orderPage-1})" ${orderPage<=1?'disabled':''}>上一页</button>`;
+        for(let i=Math.max(1,orderPage-2);i<=Math.min(totalPages,orderPage+2);i++){
+            pagerHtml += `<button class="btn btn-sm ${i===orderPage?'btn-pri':'btn-out'}" onclick="loadOrders(${i})">${i}</button>`;
+        }
+        pagerHtml += `<button class="btn btn-out btn-sm" onclick="loadOrders(${orderPage+1})" ${orderPage>=totalPages?'disabled':''}>下一页</button>`;
+    }
+    document.getElementById('orderPager').innerHTML = pagerHtml;
+}
+
+// ==================== 退款 ====================
+function showRefund(orderNo) {
+    document.getElementById('refundOrderNo').value = orderNo;
+    document.getElementById('refundOrderNoLabel').textContent = orderNo;
+    document.getElementById('refundReason').value = '';
+    document.getElementById('refundModal').classList.add('show');
+}
+
+function closeRefundModal() { document.getElementById('refundModal').classList.remove('show'); }
+
+async function submitRefund() {
+    const orderNo = document.getElementById('refundOrderNo').value;
+    const reason = document.getElementById('refundReason').value;
+    if(!reason.trim()){ toast('请填写退款原因','error'); return; }
+    const d = await api('/home/order/refund/request', {method:'POST',body:JSON.stringify({order_no:orderNo,reason:reason})});
+    if(d.code===0){ toast('退款申请已提交'); closeRefundModal(); loadOrders(orderPage); }
+    else toast(d.message,'error');
+}
+
+function showRefundProcess(orderNo) {
+    document.getElementById('rpOrderNo').value = orderNo;
+    document.getElementById('rpOrderNoLabel').textContent = orderNo;
+    document.getElementById('rpRemark').value = '';
+    document.getElementById('refundProcessModal').classList.add('show');
+}
+
+function closeRefundProcess() { document.getElementById('refundProcessModal').classList.remove('show'); }
+
+async function processRefund(approved) {
+    const orderNo = document.getElementById('rpOrderNo').value;
+    const remark = document.getElementById('rpRemark').value;
+    const d = await api('/home/order/refund/process', {method:'POST',body:JSON.stringify({order_no:orderNo,approved:approved,remark:remark})});
+    if(d.code===0){ toast(approved?'退款已通过':'退款已拒绝'); closeRefundProcess(); loadOrders(orderPage); }
+    else toast(d.message,'error');
 }
 
 async function cancelOrder(ono) {
     const d = await api('/home/order/cancel?orderNo='+ono);
-    if(d.code===0){ toast('已取消'); loadOrders(); }
+    if(d.code===0){ toast('已取消'); loadOrders(orderPage); }
     else toast(d.message,'error');
 }
 
@@ -443,13 +607,13 @@ function payOrder(ono) { location.href='/pay?orderNo='+ono; }
 
 async function confirmOrder(ono) {
     const d = await api('/home/order/confirm?order_no='+ono, {method:'POST'});
-    if(d.code===0){ toast('已确认收货'); loadOrders(); }
+    if(d.code===0){ toast('已确认收货'); loadOrders(orderPage); }
     else toast(d.message,'error');
 }
 
 async function completeOrder(ono) {
     const d = await api('/home/order/complete?order_no='+ono, {method:'POST'});
-    if(d.code===0){ toast('订单已完成'); loadOrders(); }
+    if(d.code===0){ toast('订单已完成'); loadOrders(orderPage); }
     else toast(d.message,'error');
 }
 
@@ -463,7 +627,7 @@ function promptShip(ono) {
 
 async function shipOrder(ono, company, shipNo) {
     const d = await api('/home/order/ship', {method:'POST',body:JSON.stringify({order_no:ono,ship_company:company,ship_no:shipNo})});
-    if(d.code===0){ toast('发货成功'); loadOrders(); }
+    if(d.code===0){ toast('发货成功'); loadOrders(orderPage); }
     else toast(d.message,'error');
 }
 
@@ -568,7 +732,6 @@ async function delAddr(id) {
 
 // ==================== 评价浏览 ====================
 function initReviewTab() {
-    // 填充商品下拉列表
     const sel = document.getElementById('revGoodsSelect');
     if(sel.options.length <= 1) {
         goodsCache.forEach(g => {
@@ -594,6 +757,162 @@ async function loadReviews() {
             ${r.content?`<div style="margin-top:8px;color:#555;font-size:14px;">${esc(r.content)}</div>`:''}
         </div>
     `).join('');
+}
+
+// ==================== 商品管理（管理员/商家） ====================
+async function loadGoodsMgr(page) {
+    if(page) goodsMgrPage = page;
+    const d = await api(`/home/goods/list?page=${goodsMgrPage}&size=${goodsMgrPageSize}`);
+    if(d.code!==0||!d.data||!d.data.list||!d.data.list.length){
+        document.getElementById('goodsMgrList').innerHTML='<div class="empty">暂无商品</div>';
+        document.getElementById('goodsMgrPager').innerHTML='';
+        return;
+    }
+    const goods = d.data.list, total = d.data.total;
+    document.getElementById('goodsMgrList').innerHTML = `
+        <div class="card"><table>
+            <thead><tr><th>ID</th><th>名称</th><th>价格(分)</th><th>库存</th><th>销量</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>${goods.map(g=>`
+                <tr>
+                    <td>${g.id}</td>
+                    <td><b>${esc(g.goodsname||g.goodsName)}</b></td>
+                    <td>¥${g.price}</td>
+                    <td>${g.goodsnum||g.goodsNum}</td>
+                    <td>${g.sales||0}</td>
+                    <td>${(g.status===undefined||g.status===1)?'✅上架':'❌下架'}</td>
+                    <td>
+                        <button class="btn btn-out btn-sm" onclick="editGoods(${g.id})">编辑</button>
+                        <button class="btn btn-red btn-sm" onclick="delGoods(${g.id})">删除</button>
+                    </td>
+                </tr>`).join('')}
+            </tbody>
+        </table></div>`;
+    const totalPages = Math.ceil(total/goodsMgrPageSize);
+    let pagerHtml = '';
+    if(totalPages>1){
+        pagerHtml += `<button class="btn btn-out btn-sm" onclick="loadGoodsMgr(${goodsMgrPage-1})" ${goodsMgrPage<=1?'disabled':''}>上一页</button>`;
+        for(let i=Math.max(1,goodsMgrPage-2);i<=Math.min(totalPages,goodsMgrPage+2);i++){
+            pagerHtml += `<button class="btn btn-sm ${i===goodsMgrPage?'btn-pri':'btn-out'}" onclick="loadGoodsMgr(${i})">${i}</button>`;
+        }
+        pagerHtml += `<button class="btn btn-out btn-sm" onclick="loadGoodsMgr(${goodsMgrPage+1})" ${goodsMgrPage>=totalPages?'disabled':''}>下一页</button>`;
+    }
+    document.getElementById('goodsMgrPager').innerHTML = pagerHtml;
+}
+
+function showGoodsForm(editId) {
+    document.getElementById('goodsEditId').value = '';
+    document.getElementById('goodsFormTitle').textContent = '新增商品';
+    document.getElementById('gformName').value = '';
+    document.getElementById('gformPrice').value = '';
+    document.getElementById('gformStock').value = '';
+    document.getElementById('gformCategory').value = '';
+    document.getElementById('gformImage').value = '';
+    document.getElementById('gformStatus').value = '1';
+    document.getElementById('goodsFormModal').classList.add('show');
+    if(editId) editGoods(editId);
+}
+
+function closeGoodsForm() { document.getElementById('goodsFormModal').classList.remove('show'); }
+
+async function editGoods(id) {
+    document.getElementById('goodsFormModal').classList.add('show');
+    document.getElementById('goodsFormTitle').textContent = '编辑商品';
+    document.getElementById('goodsEditId').value = id;
+    // 从缓存中查找商品信息填充表单
+    const d = await api('/home/search/goods?id='+id);
+    if(d.code!==0||!d.data) return;
+    const g = d.data;
+    document.getElementById('gformName').value = g.goodsname||g.goodsName||'';
+    document.getElementById('gformPrice').value = g.price||0;
+    document.getElementById('gformStock').value = g.goodsnum||g.goodsNum||0;
+    document.getElementById('gformCategory').value = g.category_id||'';
+    document.getElementById('gformImage').value = g.image_url||'';
+    document.getElementById('gformStatus').value = (g.status!==undefined)?g.status:'1';
+}
+
+async function saveGoods() {
+    const id = document.getElementById('goodsEditId').value;
+    const body = {
+        goodsname: document.getElementById('gformName').value,
+        price: parseInt(document.getElementById('gformPrice').value)||0,
+        goodsnum: parseInt(document.getElementById('gformStock').value)||0,
+        category_id: parseInt(document.getElementById('gformCategory').value)||null,
+        image_url: document.getElementById('gformImage').value||'',
+        status: parseInt(document.getElementById('gformStatus').value)
+    };
+    if(!body.goodsname){ toast('商品名称必填','error'); return; }
+
+    let d;
+    if(id){
+        // 更新：只传有值的字段
+        const updates = {};
+        if(body.goodsname) updates.goodsname = body.goodsname;
+        if(body.price) updates.price = body.price;
+        if(body.goodsnum) updates.goodsnum = body.goodsnum;
+        if(body.category_id) updates.category_id = body.category_id;
+        if(body.image_url!==undefined) updates.image_url = body.image_url;
+        if(body.status!==undefined) updates.status = body.status;
+        d = await api('/home/goods/'+id, {method:'PUT',body:JSON.stringify(updates)});
+    } else {
+        d = await api('/home/goods/', {method:'POST',body:JSON.stringify(body)});
+    }
+    if(d.code===0){ toast(id?'商品已更新':'商品已创建'); closeGoodsForm(); loadGoodsMgr(goodsMgrPage); loadGoods(); }
+    else toast(d.message,'error');
+}
+
+async function delGoods(id) {
+    if(!confirm('确定删除该商品?')) return;
+    const d = await api('/home/goods/'+id, {method:'DELETE'});
+    if(d.code===0){ toast('已删除'); loadGoodsMgr(goodsMgrPage); loadGoods(); }
+    else toast(d.message,'error');
+}
+
+// ==================== 评价审核（管理员） ====================
+async function loadPendingReviews(page) {
+    if(page) pendingReviewPage = page;
+    const d = await api(`/home/review/pending?page=${pendingReviewPage}&size=${pendingReviewPageSize}`);
+    if(d.code!==0||!d.data||!d.data.list||!d.data.list.length){
+        document.getElementById('pendingReviewList').innerHTML='<div class="empty">暂无待审核评价</div>';
+        document.getElementById('pendingReviewPager').innerHTML='';
+        return;
+    }
+    const reviews = d.data.list, total = d.data.total;
+    document.getElementById('pendingReviewList').innerHTML = reviews.map(r=>`
+        <div class="card" style="padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <b>${esc(r.username)}</b>
+                <span class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span>
+            </div>
+            <div style="font-size:12px;color:var(--sub);margin:4px 0;">商品ID: ${r.goods_id} | 订单: ${r.order_no||'---'}</div>
+            ${r.content?`<div style="margin:8px 0;color:#555;font-size:14px;">${esc(r.content)}</div>`:''}
+            <div style="display:flex;gap:6px;margin-top:8px;">
+                <button class="btn btn-green btn-sm" onclick="approveReview(${r.id})">✅ 通过</button>
+                <button class="btn btn-red btn-sm" onclick="rejectReview(${r.id})">❌ 驳回</button>
+            </div>
+        </div>
+    `).join('');
+    const totalPages = Math.ceil(total/pendingReviewPageSize);
+    let pagerHtml = '';
+    if(totalPages>1){
+        pagerHtml += `<button class="btn btn-out btn-sm" onclick="loadPendingReviews(${pendingReviewPage-1})" ${pendingReviewPage<=1?'disabled':''}>上一页</button>`;
+        for(let i=Math.max(1,pendingReviewPage-2);i<=Math.min(totalPages,pendingReviewPage+2);i++){
+            pagerHtml += `<button class="btn btn-sm ${i===pendingReviewPage?'btn-pri':'btn-out'}" onclick="loadPendingReviews(${i})">${i}</button>`;
+        }
+        pagerHtml += `<button class="btn btn-out btn-sm" onclick="loadPendingReviews(${pendingReviewPage+1})" ${pendingReviewPage>=totalPages?'disabled':''}>下一页</button>`;
+    }
+    document.getElementById('pendingReviewPager').innerHTML = pagerHtml;
+}
+
+async function approveReview(id) {
+    const d = await api('/home/review/'+id+'/approve', {method:'POST'});
+    if(d.code===0){ toast('评价已通过'); loadPendingReviews(pendingReviewPage); }
+    else toast(d.message,'error');
+}
+
+async function rejectReview(id) {
+    const d = await api('/home/review/'+id+'/reject', {method:'POST'});
+    if(d.code===0){ toast('评价已驳回'); loadPendingReviews(pendingReviewPage); }
+    else toast(d.message,'error');
 }
 </script>
 </body>
