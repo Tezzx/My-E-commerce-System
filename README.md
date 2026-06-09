@@ -1,6 +1,6 @@
-# Order Payment System（订单支付系统）
+# My-E-commerce-System（电商系统）
 
-基于 Go 语言构建的高并发电商订单与支付系统，采用分层架构（Handler → Service → Repository）与依赖注入设计。系统涵盖用户鉴权、商品管理、购物车、订单交易、支付宝支付、退款审批、评价审核等完整交易闭环，并引入 Redis 缓存策略、RabbitMQ 异步削峰、分布式链路追踪等生产级特性。
+基于 Go 语言构建的高并发电商系统，采用分层架构（Handler → Service → Repository）与依赖注入设计。系统涵盖用户鉴权、商品管理、购物车、订单交易、支付宝支付、退款审批、评价审核等完整交易闭环，并引入 Redis 缓存策略、RabbitMQ 异步削峰、分布式链路追踪等生产级特性。
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/Docker-✓-2496ED?style=flat&logo=docker)](https://www.docker.com/)
